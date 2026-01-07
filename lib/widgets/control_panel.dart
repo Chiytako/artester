@@ -160,59 +160,61 @@ class ControlPanel extends ConsumerWidget {
 
   /// カテゴリータブ（Light / Color / Effect）
   Widget _buildCategoryTabs(WidgetRef ref, String selectedId) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children:
-          categories.map((category) {
-            final isSelected = category.id == selectedId;
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              child: GestureDetector(
-                onTap: () {
-                  ref.read(selectedCategoryProvider.notifier).state =
-                      category.id;
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color:
-                        isSelected
-                            ? const Color.fromRGBO(255, 193, 7, 0.25)
-                            : const Color.fromRGBO(255, 255, 255, 0.08),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: isSelected ? Colors.amber : Colors.transparent,
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        category.icon,
-                        color: isSelected ? Colors.amber : Colors.white60,
-                        size: 18,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        category.label,
-                        style: TextStyle(
-                          color: isSelected ? Colors.amber : Colors.white60,
-                          fontSize: 13,
-                          fontWeight:
-                              isSelected ? FontWeight.w600 : FontWeight.normal,
-                        ),
-                      ),
-                    ],
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: categories.map((category) {
+          final isSelected = category.id == selectedId;
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: GestureDetector(
+              onTap: () {
+                ref.read(selectedCategoryProvider.notifier).state = category.id;
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? const Color.fromRGBO(255, 193, 7, 0.25)
+                      : const Color.fromRGBO(255, 255, 255, 0.08),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isSelected ? Colors.amber : Colors.transparent,
+                    width: 1.5,
                   ),
                 ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      category.icon,
+                      color: isSelected ? Colors.amber : Colors.white60,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      category.label,
+                      style: TextStyle(
+                        color: isSelected ? Colors.amber : Colors.white60,
+                        fontSize: 13,
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            );
-          }).toList(),
+            ),
+          );
+        }).toList(),
+      ),
     );
   }
 
