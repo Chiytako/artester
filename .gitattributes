@@ -1,0 +1,22 @@
+# Auto-detect text files and perform LF normalization
+* text=auto
+
+# Custom mappings for file types
+*.dart text
+*.html text
+*.css text
+*.js text
+*.json text
+*.yaml text
+*.md text
+*.txt text
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.mov binary
+*.mp4 binary
+*.mp3 binary
+*.wav binary
+*.pdf binary
