@@ -117,7 +117,6 @@ const List<CategoryDef> categories = [
       ),
     ],
   ),
-  CategoryDef(id: 'style', label: 'Style', icon: Icons.brush, parameters: []),
 ];
 
 /// 選択中のカテゴリを管理するプロバイダー
@@ -168,8 +167,6 @@ class ControlPanel extends ConsumerWidget {
               _buildGeometryControls(context, ref)
             else if (currentCategory.id == 'subject')
               _buildSubjectControls(context, ref)
-            else if (currentCategory.id == 'style')
-              _buildStyleControls(context, ref)
             else
               _buildParameterSliders(currentCategory),
             const SizedBox(height: 8),
@@ -475,35 +472,6 @@ class ControlPanel extends ConsumerWidget {
     }
   }
 
-  /// スタイル変換コントロール
-  Widget _buildStyleControls(BuildContext context, WidgetRef ref) {
-    final editState = ref.watch(editProvider);
-
-    if (editState.isAiProcessing) {
-      return const SizedBox(
-        height: 160,
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(color: Colors.purple),
-              SizedBox(height: 16),
-              Text(
-                'Applying artistic style...',
-                style: TextStyle(color: Colors.white70),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return SizedBox(
-      height: 160,
-      child: Center(child: _buildStyleTransferSection(context, ref)),
-    );
-  }
-
   /// AI機能カード（共通レイアウト）
   Widget _buildAiFeatureCard({
     required BuildContext context,
@@ -545,169 +513,6 @@ class ControlPanel extends ConsumerWidget {
           ),
         ),
       ],
-    );
-  }
-
-  /// Style Transfer セクション
-  Widget _buildStyleTransferSection(BuildContext context, WidgetRef ref) {
-    return Column(
-      children: [
-        const Icon(Icons.brush, size: 36, color: Colors.purple),
-        const SizedBox(height: 8),
-        const Text(
-          'Artistic Style Transfer',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 4),
-        const Text(
-          'Transform your photo with artistic styles',
-          style: TextStyle(color: Colors.white60, fontSize: 11),
-        ),
-        const SizedBox(height: 12),
-        // Style selection buttons
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          alignment: WrapAlignment.center,
-          children: [
-            _buildStyleButton(
-              context: context,
-              ref: ref,
-              label: 'Wave',
-              styleImagePath: 'assets/styles/wave.jpg',
-              icon: Icons.water,
-            ),
-            _buildStyleButton(
-              context: context,
-              ref: ref,
-              label: 'Rain Princess',
-              styleImagePath: 'assets/styles/rain_princess.jpg',
-              icon: Icons.cloud,
-            ),
-            _buildStyleButton(
-              context: context,
-              ref: ref,
-              label: 'La Muse',
-              styleImagePath: 'assets/styles/la_muse.jpg',
-              icon: Icons.face,
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  /// スタイル選択ボタン
-  Widget _buildStyleButton({
-    required BuildContext context,
-    required WidgetRef ref,
-    required String label,
-    required String styleImagePath,
-    required IconData icon,
-  }) {
-    // Note: Interpreter.fromAsset() may or may not need 'assets/' prefix
-    // Try without prefix first (standard tflite_flutter behavior)
-    const modelPath = 'assets/models/style_transfer_quant.tflite';
-
-    return ElevatedButton.icon(
-      onPressed: () async {
-        try {
-          await ref
-              .read(editProvider.notifier)
-              .applyStyleTransfer(modelPath, styleImagePath);
-
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('$label style applied!'),
-                backgroundColor: Colors.green,
-                duration: const Duration(seconds: 2),
-              ),
-            );
-          }
-        } catch (e) {
-          if (context.mounted) {
-            // User-friendly error message with details
-            String errorMessage = 'Style transfer failed';
-            String errorDetails = e.toString();
-
-            if (errorDetails.contains('Unable to open file') ||
-                errorDetails.contains('FileSystemException')) {
-              errorMessage = 'Model file not found or cannot be opened';
-            } else if (errorDetails.contains('Failed to load style image')) {
-              errorMessage = 'Style image not found: $styleImagePath';
-            } else if (errorDetails.contains('Shape mismatch') ||
-                errorDetails.contains('tensor') ||
-                errorDetails.contains('Input') ||
-                errorDetails.contains('Output')) {
-              errorMessage =
-                  'Model format mismatch. Check model specifications';
-            } else if (errorDetails.contains('GPU') ||
-                errorDetails.contains('delegate')) {
-              errorMessage = 'GPU delegate error. Try restarting the app';
-            } else if (errorDetails.contains('memory') ||
-                errorDetails.contains('Memory')) {
-              errorMessage = 'Out of memory. Try with a smaller image';
-            }
-
-            // Show error with more details
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      errorMessage,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'See STYLE_TRANSFER_TROUBLESHOOTING.md for help',
-                      style: const TextStyle(fontSize: 11),
-                    ),
-                  ],
-                ),
-                backgroundColor: Colors.red,
-                duration: const Duration(seconds: 6),
-                action: SnackBarAction(
-                  label: 'Details',
-                  textColor: Colors.white,
-                  onPressed: () {
-                    // Show detailed error in a dialog
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Error Details'),
-                        content: SingleChildScrollView(
-                          child: Text(errorDetails),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('OK'),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-            );
-          }
-        }
-      },
-      icon: Icon(icon, size: 16),
-      label: Text(label, style: const TextStyle(fontSize: 11)),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.purple,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      ),
     );
   }
 }

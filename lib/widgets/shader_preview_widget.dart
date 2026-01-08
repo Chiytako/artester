@@ -66,7 +66,9 @@ class _ShaderPreviewWidgetState extends ConsumerState<ShaderPreviewWidget> {
     try {
       debugPrint('Generating neutral LUT...');
       _neutralLut = await LutGenerator.generateNeutralLut();
-      debugPrint('Neutral LUT generated successfully: ${_neutralLut?.width}x${_neutralLut?.height}');
+      debugPrint(
+        'Neutral LUT generated successfully: ${_neutralLut?.width}x${_neutralLut?.height}',
+      );
       if (mounted) setState(() {});
     } catch (e) {
       debugPrint('Neutral LUT生成エラー: $e');
@@ -208,82 +210,86 @@ class _ShaderPainter extends CustomPainter {
       // 画像のアスペクト比を維持しながらフィット
       // 回転を考慮 (90度・270度の場合は縦横入れ替わり)
       final isRotated = rotation % 2 != 0;
-      final imageWidth =
-          isRotated ? image.height.toDouble() : image.width.toDouble();
-      final imageHeight =
-          isRotated ? image.width.toDouble() : image.height.toDouble();
+      final imageWidth = isRotated
+          ? image.height.toDouble()
+          : image.width.toDouble();
+      final imageHeight = isRotated
+          ? image.width.toDouble()
+          : image.height.toDouble();
 
-    final imageAspect = imageWidth / imageHeight;
-    final canvasAspect = size.width / size.height;
+      final imageAspect = imageWidth / imageHeight;
+      final canvasAspect = size.width / size.height;
 
-    double drawWidth, drawHeight;
-    double offsetX = 0, offsetY = 0;
+      double drawWidth, drawHeight;
+      double offsetX = 0, offsetY = 0;
 
-    if (imageAspect > canvasAspect) {
-      drawWidth = size.width;
-      drawHeight = size.width / imageAspect;
-      offsetY = (size.height - drawHeight) / 2;
-    } else {
-      drawHeight = size.height;
-      drawWidth = size.height * imageAspect;
-      offsetX = (size.width - drawWidth) / 2;
-    }
+      if (imageAspect > canvasAspect) {
+        drawWidth = size.width;
+        drawHeight = size.width / imageAspect;
+        offsetY = (size.height - drawHeight) / 2;
+      } else {
+        drawHeight = size.height;
+        drawWidth = size.height * imageAspect;
+        offsetX = (size.width - drawWidth) / 2;
+      }
 
-    // サンプラー設定（Flutter要件：サンプラーは最初に設定）
-    // 重要: シェーダーで定義されているすべてのサンプラーを設定する必要がある
-    shader.setImageSampler(0, image); // uTexture
-    shader.setImageSampler(1, lutImage); // uLut
-    // マスクがない場合はダミーとしてLUT画像を使用（uHasMaskフラグで無効化）
-    shader.setImageSampler(2, hasMask && maskImage != null ? maskImage! : lutImage); // uMask
+      // サンプラー設定（Flutter要件：サンプラーは最初に設定）
+      // 重要: シェーダーで定義されているすべてのサンプラーを設定する必要がある
+      shader.setImageSampler(0, image); // uTexture
+      shader.setImageSampler(1, lutImage); // uLut
+      // マスクがない場合はダミーとしてLUT画像を使用（uHasMaskフラグで無効化）
+      shader.setImageSampler(
+        2,
+        hasMask && maskImage != null ? maskImage! : lutImage,
+      ); // uMask
 
-    // Float uniforms（シェーダーのuniform定義順序に厳密に合わせて設定）
-    int idx = 0;
+      // Float uniforms（シェーダーのuniform定義順序に厳密に合わせて設定）
+      int idx = 0;
 
-    // uSize (vec2) - 描画サイズ
-    shader.setFloat(idx++, drawWidth);
-    shader.setFloat(idx++, drawHeight);
+      // uSize (vec2) - 描画サイズ
+      shader.setFloat(idx++, drawWidth);
+      shader.setFloat(idx++, drawHeight);
 
-    // LUT Parameters
-    shader.setFloat(idx++, lutIntensity); // uLutIntensity
-    shader.setFloat(idx++, hasLut ? 1.0 : 0.0); // uHasLut
+      // LUT Parameters
+      shader.setFloat(idx++, lutIntensity); // uLutIntensity
+      shader.setFloat(idx++, hasLut ? 1.0 : 0.0); // uHasLut
 
-    // Light Parameters
-    shader.setFloat(idx++, _get('exposure')); // uExposure
-    shader.setFloat(idx++, _get('brightness')); // uBrightness
-    shader.setFloat(idx++, _get('contrast')); // uContrast
-    shader.setFloat(idx++, _get('highlight')); // uHighlight
-    shader.setFloat(idx++, _get('shadow')); // uShadow
+      // Light Parameters
+      shader.setFloat(idx++, _get('exposure')); // uExposure
+      shader.setFloat(idx++, _get('brightness')); // uBrightness
+      shader.setFloat(idx++, _get('contrast')); // uContrast
+      shader.setFloat(idx++, _get('highlight')); // uHighlight
+      shader.setFloat(idx++, _get('shadow')); // uShadow
 
-    // Color Parameters
-    shader.setFloat(idx++, _get('saturation')); // uSaturation
-    shader.setFloat(idx++, _get('temperature')); // uTemperature
-    shader.setFloat(idx++, _get('tint')); // uTint
+      // Color Parameters
+      shader.setFloat(idx++, _get('saturation')); // uSaturation
+      shader.setFloat(idx++, _get('temperature')); // uTemperature
+      shader.setFloat(idx++, _get('tint')); // uTint
 
-    // Effect Parameters
-    shader.setFloat(idx++, _get('vignette')); // uVignette
-    shader.setFloat(idx++, _get('grain')); // uGrain
+      // Effect Parameters
+      shader.setFloat(idx++, _get('vignette')); // uVignette
+      shader.setFloat(idx++, _get('grain')); // uGrain
 
-    // Geometry Parameters
-    shader.setFloat(idx++, rotation.toDouble()); // uRotation
-    shader.setFloat(idx++, flipX ? 1.0 : 0.0); // uFlipX
-    shader.setFloat(idx++, flipY ? 1.0 : 0.0); // uFlipY
+      // Geometry Parameters
+      shader.setFloat(idx++, rotation.toDouble()); // uRotation
+      shader.setFloat(idx++, flipX ? 1.0 : 0.0); // uFlipX
+      shader.setFloat(idx++, flipY ? 1.0 : 0.0); // uFlipY
 
-    // AI Segmentation Parameters
-    shader.setFloat(idx++, hasMask ? 1.0 : 0.0); // uHasMask
-    shader.setFloat(idx++, _get('bgSaturation')); // uBgSaturation
-    shader.setFloat(idx++, _get('bgExposure')); // uBgExposure
+      // AI Segmentation Parameters
+      shader.setFloat(idx++, hasMask ? 1.0 : 0.0); // uHasMask
+      shader.setFloat(idx++, _get('bgSaturation')); // uBgSaturation
+      shader.setFloat(idx++, _get('bgExposure')); // uBgExposure
 
-    // Compare Mode Parameter
-    shader.setFloat(idx++, isComparing ? 1.0 : 0.0); // uShowOriginal
+      // Compare Mode Parameter
+      shader.setFloat(idx++, isComparing ? 1.0 : 0.0); // uShowOriginal
 
       // 描画
       canvas.save();
       canvas.translate(offsetX, offsetY);
 
-      final paint =
-          Paint()
-            ..shader = shader
-            ..filterQuality = FilterQuality.medium;
+      final paint = Paint()
+        ..shader = shader
+        ..filterQuality = FilterQuality.medium;
       canvas.drawRect(Rect.fromLTWH(0, 0, drawWidth, drawHeight), paint);
 
       canvas.restore();

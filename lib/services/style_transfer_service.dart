@@ -6,64 +6,68 @@ import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 import 'package:tflite_flutter/tflite_flutter.dart';
 
-/// Style Transfer Service using TensorFlow Lite (2-input model)
+/// Style Transfer Service using TensorFlow Lite (Two-Stage Pipeline)
 ///
-/// This service manages the TFLite interpreter and executes style transfer
-/// with both content and style images.
+/// Uses two models:
+/// 1. style_predict: Extracts style vector from style image -> [1, 1, 1, 100]
+/// 2. style_transform: Applies style vector to content image -> stylized image
 class StyleTransferService {
-  Interpreter? _interpreter;
+  Interpreter? _predictInterpreter;
+  Interpreter? _transformInterpreter;
   bool _isInitialized = false;
 
   // Model input/output specifications
-  static const int _contentSize = 384; // Content image input size
-  static const int _styleSize = 256; // Style image input size
+  // style_predict: input 256x256 style image -> output [1,1,1,100] style vector
+  // style_transform: input 384x384 content + style vector -> output 384x384 styled image
+  static const int _contentSize =
+      384; // Content image input size (transform model)
+  static const int _styleSize = 256; // Style image input size (predict model)
   static const int _channels = 3; // RGB channels
+  static const int _styleVectorSize = 100; // Style bottleneck vector size
 
-  /// Initialize the TFLite interpreter with a model file
+  /// Initialize both TFLite interpreters
   ///
-  /// [modelPath] - Asset path to the .tflite model file
-  /// Example: 'models/style_transfer_quant.tflite'
-  Future<void> initialize(String modelPath) async {
+  /// [predictModelPath] - Asset path to style_predict model
+  /// [transformModelPath] - Asset path to style_transform model
+  Future<void> initialize(
+    String predictModelPath,
+    String transformModelPath,
+  ) async {
     try {
-      debugPrint('=== Style Transfer Initialization ===');
-      debugPrint('Loading TFLite model from: $modelPath');
+      debugPrint('=== Style Transfer Initialization (Two-Stage) ===');
 
-      // Load model from assets
-      final interpreterOptions = InterpreterOptions();
-
-      // Try to use GPU delegate if available (improves performance)
+      // Load Style Predict model
+      debugPrint('Loading Style Predict model: $predictModelPath');
+      final predictOptions = InterpreterOptions();
       try {
-        interpreterOptions.addDelegate(GpuDelegateV2());
-        debugPrint('GPU delegate enabled');
+        predictOptions.addDelegate(GpuDelegateV2());
       } catch (e) {
-        debugPrint('GPU delegate not available, using CPU: $e');
+        debugPrint('GPU delegate not available for predict model: $e');
       }
-
-      _interpreter = await Interpreter.fromAsset(
-        modelPath,
-        options: interpreterOptions,
+      _predictInterpreter = await Interpreter.fromAsset(
+        predictModelPath,
+        options: predictOptions,
       );
+      _logModelInfo('Predict', _predictInterpreter!);
+
+      // Load Style Transform model
+      debugPrint('Loading Style Transform model: $transformModelPath');
+      final transformOptions = InterpreterOptions();
+      try {
+        transformOptions.addDelegate(GpuDelegateV2());
+      } catch (e) {
+        debugPrint('GPU delegate not available for transform model: $e');
+      }
+      _transformInterpreter = await Interpreter.fromAsset(
+        transformModelPath,
+        options: transformOptions,
+      );
+      _logModelInfo('Transform', _transformInterpreter!);
 
       _isInitialized = true;
-      debugPrint('TFLite model loaded successfully');
-
-      // Enhanced debugging
-      final inputTensors = _interpreter!.getInputTensors();
-      final outputTensors = _interpreter!.getOutputTensors();
-
-      debugPrint('Number of inputs: ${inputTensors.length}');
-      for (var i = 0; i < inputTensors.length; i++) {
-        debugPrint('  Input $i: ${inputTensors[i].shape} ${inputTensors[i].type}');
-      }
-
-      debugPrint('Number of outputs: ${outputTensors.length}');
-      for (var i = 0; i < outputTensors.length; i++) {
-        debugPrint('  Output $i: ${outputTensors[i].shape} ${outputTensors[i].type}');
-      }
-
       debugPrint('=== Initialization Complete ===');
     } catch (e, stackTrace) {
-      debugPrint('=== Error loading TFLite model ===');
+      debugPrint('=== Error loading TFLite models ===');
       debugPrint('Error: $e');
       debugPrint('Stack trace: $stackTrace');
       _isInitialized = false;
@@ -71,10 +75,28 @@ class StyleTransferService {
     }
   }
 
+  void _logModelInfo(String name, Interpreter interpreter) {
+    final inputTensors = interpreter.getInputTensors();
+    final outputTensors = interpreter.getOutputTensors();
+    debugPrint(
+      '$name model - Inputs: ${inputTensors.length}, Outputs: ${outputTensors.length}',
+    );
+    for (var i = 0; i < inputTensors.length; i++) {
+      debugPrint(
+        '  Input $i: ${inputTensors[i].shape} ${inputTensors[i].type}',
+      );
+    }
+    for (var i = 0; i < outputTensors.length; i++) {
+      debugPrint(
+        '  Output $i: ${outputTensors[i].shape} ${outputTensors[i].type}',
+      );
+    }
+  }
+
   /// Check if the service is initialized
   bool get isInitialized => _isInitialized;
 
-  /// Apply style transfer to an image with a style image
+  /// Apply style transfer using two-stage pipeline
   ///
   /// [contentImage] - The input ui.Image to apply style transfer to
   /// [styleImagePath] - Asset path to the style image (e.g., 'assets/styles/wave.jpg')
@@ -83,31 +105,37 @@ class StyleTransferService {
     ui.Image contentImage,
     String styleImagePath,
   ) async {
-    if (!_isInitialized || _interpreter == null) {
+    if (!_isInitialized ||
+        _predictInterpreter == null ||
+        _transformInterpreter == null) {
       throw Exception(
-          'StyleTransferService not initialized. Call initialize() first.');
+        'StyleTransferService not initialized. Call initialize() first.',
+      );
     }
 
-    debugPrint(
-        'Starting style transfer on image: ${contentImage.width}x${contentImage.height}');
-    debugPrint('Using style: $styleImagePath');
+    debugPrint('Starting two-stage style transfer...');
+    debugPrint('Content: ${contentImage.width}x${contentImage.height}');
+    debugPrint('Style: $styleImagePath');
 
-    // Step 1: Load and preprocess style image
+    // Stage 1: Extract style vector from style image
+    debugPrint('Stage 1: Extracting style vector...');
     final styleImage = await _loadStyleImage(styleImagePath);
-    final preprocessedStyle = _preprocessStyleImage(styleImage);
+    final styleVector = _runStylePredict(styleImage);
+    debugPrint('Style vector extracted: ${styleVector.length} elements');
 
-    // Step 2: Convert and preprocess content image
+    // Stage 2: Apply style to content image
+    debugPrint('Stage 2: Applying style to content...');
     final contentImgImage = await _convertUiImageToImage(contentImage);
-    final preprocessedContent = _preprocessContentImage(contentImgImage);
+    final styledOutput = _runStyleTransform(contentImgImage, styleVector);
 
-    // Step 3: Run inference with both inputs
-    final output = _runInference(preprocessedContent, preprocessedStyle);
+    // Convert output to ui.Image
+    final resultImage = await _postprocessOutput(
+      styledOutput,
+      contentImage.width,
+      contentImage.height,
+    );
 
-    // Step 4: Postprocess - convert output back to image
-    final resultImage =
-        await _postprocessOutput(output, contentImage.width, contentImage.height);
-
-    debugPrint('Style transfer completed');
+    debugPrint('Style transfer completed successfully!');
     return resultImage;
   }
 
@@ -116,164 +144,169 @@ class StyleTransferService {
     final data = await rootBundle.load(assetPath);
     final bytes = data.buffer.asUint8List();
     final image = img.decodeImage(bytes);
-
     if (image == null) {
       throw Exception('Failed to load style image: $assetPath');
     }
-
     return image;
   }
 
   /// Convert ui.Image to image.Image
   Future<img.Image> _convertUiImageToImage(ui.Image uiImage) async {
-    final byteData =
-        await uiImage.toByteData(format: ui.ImageByteFormat.rawRgba);
+    final byteData = await uiImage.toByteData(
+      format: ui.ImageByteFormat.rawRgba,
+    );
     if (byteData == null) {
       throw Exception('Failed to convert ui.Image to bytes');
     }
-
     final bytes = byteData.buffer.asUint8List();
-    final imgImage = img.Image.fromBytes(
+    return img.Image.fromBytes(
       width: uiImage.width,
       height: uiImage.height,
       bytes: bytes.buffer,
       numChannels: 4,
     );
-
-    return imgImage;
   }
 
-  /// Preprocess content image for model input
-  Float32List _preprocessContentImage(img.Image image) {
-    // Resize to content input size
+  /// Run style prediction to extract style vector
+  Float32List _runStylePredict(img.Image styleImage) {
+    // Resize to style input size (256x256)
     final resized = img.copyResize(
-      image,
-      width: _contentSize,
-      height: _contentSize,
-      interpolation: img.Interpolation.linear,
-    );
-
-    // Prepare input buffer: [1, 384, 384, 3]
-    final inputBuffer = Float32List(1 * _contentSize * _contentSize * _channels);
-
-    int pixelIndex = 0;
-    for (int y = 0; y < _contentSize; y++) {
-      for (int x = 0; x < _contentSize; x++) {
-        final pixel = resized.getPixel(x, y);
-
-        // Normalize to 0.0-1.0 range
-        inputBuffer[pixelIndex++] = pixel.r / 255.0;
-        inputBuffer[pixelIndex++] = pixel.g / 255.0;
-        inputBuffer[pixelIndex++] = pixel.b / 255.0;
-      }
-    }
-
-    return inputBuffer;
-  }
-
-  /// Preprocess style image for model input
-  Float32List _preprocessStyleImage(img.Image image) {
-    // Resize to style input size
-    final resized = img.copyResize(
-      image,
+      styleImage,
       width: _styleSize,
       height: _styleSize,
       interpolation: img.Interpolation.linear,
     );
 
-    // Prepare input buffer: [1, 256, 256, 3]
+    // Prepare input: [1, 256, 256, 3]
     final inputBuffer = Float32List(1 * _styleSize * _styleSize * _channels);
-
     int pixelIndex = 0;
     for (int y = 0; y < _styleSize; y++) {
       for (int x = 0; x < _styleSize; x++) {
         final pixel = resized.getPixel(x, y);
-
-        // Normalize to 0.0-1.0 range
         inputBuffer[pixelIndex++] = pixel.r / 255.0;
         inputBuffer[pixelIndex++] = pixel.g / 255.0;
         inputBuffer[pixelIndex++] = pixel.b / 255.0;
       }
     }
 
-    return inputBuffer;
+    // Reshape input
+    final input = inputBuffer.reshape([1, _styleSize, _styleSize, _channels]);
+
+    // Prepare output: [1, 1, 1, 100]
+    final output = List.generate(
+      1,
+      (_) => List.generate(
+        1,
+        (_) => List.generate(1, (_) => List.filled(_styleVectorSize, 0.0)),
+      ),
+    );
+
+    // Run inference
+    _predictInterpreter!.run(input, output);
+
+    // Flatten to 1D array [100]
+    final styleVector = Float32List(_styleVectorSize);
+    for (int i = 0; i < _styleVectorSize; i++) {
+      styleVector[i] = (output[0][0][0][i] as num).toDouble();
+    }
+
+    return styleVector;
   }
 
-  /// Run inference with both content and style inputs
-  Float32List _runInference(Float32List contentInput, Float32List styleInput) {
-    try {
-      debugPrint('=== Running Inference ===');
-      debugPrint('Content input size: ${contentInput.length}');
-      debugPrint('Style input size: ${styleInput.length}');
-      debugPrint('Expected content: ${1 * _contentSize * _contentSize * _channels}');
-      debugPrint('Expected style: ${1 * _styleSize * _styleSize * _channels}');
+  /// Run style transform to apply style to content
+  Float32List _runStyleTransform(
+    img.Image contentImage,
+    Float32List styleVector,
+  ) {
+    // Resize content to transform input size (384x384)
+    final resized = img.copyResize(
+      contentImage,
+      width: _contentSize,
+      height: _contentSize,
+      interpolation: img.Interpolation.linear,
+    );
 
-      // Reshape inputs
-      final contentReshaped =
-          contentInput.reshape([1, _contentSize, _contentSize, _channels]);
-      final styleReshaped =
-          styleInput.reshape([1, _styleSize, _styleSize, _channels]);
-
-      debugPrint('Content reshaped: ${contentReshaped.shape}');
-      debugPrint('Style reshaped: ${styleReshaped.shape}');
-
-      // Prepare inputs list (input 0: content, input 1: style)
-      final inputs = [contentReshaped, styleReshaped];
-
-      // Prepare output buffer as a shaped tensor
-      final output = List.generate(
-        1,
-        (_) => List.generate(
-          _contentSize,
-          (_) => List.generate(
-            _contentSize,
-            (_) => List.filled(_channels, 0.0),
-          ),
-        ),
-      );
-
-      // Prepare outputs map
-      final outputs = {0: output};
-
-      debugPrint('Starting TFLite inference...');
-      debugPrint('Inputs count: ${inputs.length}');
-      debugPrint('Outputs count: ${outputs.length}');
-
-      // Run inference with multiple inputs
-      try {
-        _interpreter!.runForMultipleInputs(inputs, outputs);
-        debugPrint('Inference completed successfully');
-      } catch (inferenceError) {
-        debugPrint('=== Inference Error ===');
-        debugPrint('Error: $inferenceError');
-        debugPrint('This usually means:');
-        debugPrint('  1. Model expects different input shapes');
-        debugPrint('  2. Model expects different number of inputs');
-        debugPrint('  3. Input/output tensor types mismatch');
-        rethrow;
+    // Prepare content input: [1, 384, 384, 3]
+    final contentBuffer = Float32List(
+      1 * _contentSize * _contentSize * _channels,
+    );
+    int pixelIndex = 0;
+    for (int y = 0; y < _contentSize; y++) {
+      for (int x = 0; x < _contentSize; x++) {
+        final pixel = resized.getPixel(x, y);
+        contentBuffer[pixelIndex++] = pixel.r / 255.0;
+        contentBuffer[pixelIndex++] = pixel.g / 255.0;
+        contentBuffer[pixelIndex++] = pixel.b / 255.0;
       }
+    }
 
-      // Flatten output to Float32List
-      final flatOutput = Float32List(_contentSize * _contentSize * _channels);
-      int index = 0;
-      for (int y = 0; y < _contentSize; y++) {
-        for (int x = 0; x < _contentSize; x++) {
-          for (int c = 0; c < _channels; c++) {
-            flatOutput[index++] = (output[0][y][x][c] as num).toDouble();
-          }
+    // Reshape inputs
+    final contentInput = contentBuffer.reshape([
+      1,
+      _contentSize,
+      _contentSize,
+      _channels,
+    ]);
+    final styleInput = styleVector.reshape([1, 1, 1, _styleVectorSize]);
+
+    // Prepare output: [1, 384, 384, 3]
+    final output = List.generate(
+      1,
+      (_) => List.generate(
+        _contentSize,
+        (_) => List.generate(_contentSize, (_) => List.filled(_channels, 0.0)),
+      ),
+    );
+
+    // Determine correct input order by checking tensor shapes
+    // Input 0 could be either style bottleneck [1,1,1,100] or content [1,384,384,3]
+    final inputTensors = _transformInterpreter!.getInputTensors();
+    debugPrint('Transform model input tensors:');
+    for (var i = 0; i < inputTensors.length; i++) {
+      debugPrint(
+        '  Input $i: ${inputTensors[i].shape} name=${inputTensors[i].name}',
+      );
+    }
+
+    // Check if input 0 is the style bottleneck (small tensor) or content image (large tensor)
+    final input0Shape = inputTensors[0].shape;
+    final isInput0Style =
+        input0Shape.length == 4 && input0Shape[1] == 1 && input0Shape[2] == 1;
+
+    final List<Object> inputs;
+    if (isInput0Style) {
+      debugPrint('Input order: [style, content]');
+      inputs = [styleInput, contentInput];
+    } else {
+      debugPrint('Input order: [content, style]');
+      inputs = [contentInput, styleInput];
+    }
+
+    final outputs = {0: output};
+
+    _transformInterpreter!.runForMultipleInputs(inputs, outputs);
+
+    // Debug: Check output range
+    double minVal = double.infinity;
+    double maxVal = double.negativeInfinity;
+
+    // Flatten output
+    final flatOutput = Float32List(_contentSize * _contentSize * _channels);
+    int index = 0;
+    for (int y = 0; y < _contentSize; y++) {
+      for (int x = 0; x < _contentSize; x++) {
+        for (int c = 0; c < _channels; c++) {
+          final val = (output[0][y][x][c] as num).toDouble();
+          flatOutput[index++] = val;
+          if (val < minVal) minVal = val;
+          if (val > maxVal) maxVal = val;
         }
       }
-
-      debugPrint('Output flattened successfully');
-      debugPrint('=== Inference Complete ===');
-
-      return flatOutput;
-    } catch (e, stackTrace) {
-      debugPrint('=== Error during inference ===');
-      debugPrint('Error: $e');
-      debugPrint('Stack trace: $stackTrace');
-      rethrow;
     }
+
+    debugPrint('Output value range: min=$minVal, max=$maxVal');
+
+    return flatOutput;
   }
 
   /// Postprocess model output back to ui.Image
@@ -282,22 +315,19 @@ class StyleTransferService {
     int targetWidth,
     int targetHeight,
   ) async {
-    // Convert output to image.Image
     final imgImage = img.Image(width: _contentSize, height: _contentSize);
 
     int pixelIndex = 0;
     for (int y = 0; y < _contentSize; y++) {
       for (int x = 0; x < _contentSize; x++) {
-        // Denormalize and clamp to 0-255 range
         final r = (output[pixelIndex++] * 255.0).clamp(0, 255).toInt();
         final g = (output[pixelIndex++] * 255.0).clamp(0, 255).toInt();
         final b = (output[pixelIndex++] * 255.0).clamp(0, 255).toInt();
-
         imgImage.setPixelRgba(x, y, r, g, b, 255);
       }
     }
 
-    // Resize back to original/target dimensions
+    // Resize back to original dimensions
     final resized = img.copyResize(
       imgImage,
       width: targetWidth,
@@ -305,7 +335,6 @@ class StyleTransferService {
       interpolation: img.Interpolation.linear,
     );
 
-    // Convert back to ui.Image
     return _convertImageToUiImage(resized);
   }
 
@@ -319,8 +348,10 @@ class StyleTransferService {
 
   /// Dispose of resources
   void dispose() {
-    _interpreter?.close();
-    _interpreter = null;
+    _predictInterpreter?.close();
+    _transformInterpreter?.close();
+    _predictInterpreter = null;
+    _transformInterpreter = null;
     _isInitialized = false;
     debugPrint('StyleTransferService disposed');
   }

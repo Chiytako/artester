@@ -395,10 +395,7 @@ class EditNotifier extends StateNotifier<EditState> {
         neutralLut: neutralLut,
       );
 
-      state = state.copyWith(
-        maskImage: maskImage,
-        isAiProcessing: false,
-      );
+      state = state.copyWith(maskImage: maskImage, isAiProcessing: false);
     } catch (e) {
       debugPrint('AI segmentation error: $e');
       state = state.copyWith(isAiProcessing: false);
@@ -413,26 +410,31 @@ class EditNotifier extends StateNotifier<EditState> {
     newParams['bgSaturation'] = 0.0;
     newParams['bgExposure'] = 0.0;
 
-    state = state.copyWith(
-      maskImage: null,
-      parameters: newParams,
-    );
+    state = state.copyWith(maskImage: null, parameters: newParams);
   }
 
-  /// AI Style Transferを実行
+  /// AI Style Transferを実行（2段階パイプライン）
   ///
-  /// [modelPath] - TFLiteモデルファイルのパス（例: 'models/style_transfer_quant.tflite'）
+  /// [predictModelPath] - Style Predict TFLiteモデルのパス
+  /// [transformModelPath] - Style Transform TFLiteモデルのパス
   /// [styleImagePath] - スタイル画像のアセットパス（例: 'assets/styles/wave.jpg'）
-  Future<void> applyStyleTransfer(String modelPath, String styleImagePath) async {
+  Future<void> applyStyleTransfer(
+    String predictModelPath,
+    String transformModelPath,
+    String styleImagePath,
+  ) async {
     if (state.image == null) return;
 
     _saveToHistory();
     state = state.copyWith(isAiProcessing: true);
 
     try {
-      // Initialize the model if not already initialized
+      // Initialize the models if not already initialized
       if (!_styleTransferService.isInitialized) {
-        await _styleTransferService.initialize(modelPath);
+        await _styleTransferService.initialize(
+          predictModelPath,
+          transformModelPath,
+        );
       }
 
       // Apply style transfer with style image
@@ -442,10 +444,7 @@ class EditNotifier extends StateNotifier<EditState> {
       );
 
       // Update state with the styled image
-      state = state.copyWith(
-        image: styledImage,
-        isAiProcessing: false,
-      );
+      state = state.copyWith(image: styledImage, isAiProcessing: false);
 
       debugPrint('Style transfer applied successfully');
     } catch (e) {

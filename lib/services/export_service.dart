@@ -104,14 +104,12 @@ class ExportService {
     // 1. オリジナル解像度でCanvas作成
     // 回転を考慮したサイズ計算
     final isRotated = rotation % 2 != 0;
-    final width =
-        isRotated
-            ? originalImage.height.toDouble()
-            : originalImage.width.toDouble();
-    final height =
-        isRotated
-            ? originalImage.width.toDouble()
-            : originalImage.height.toDouble();
+    final width = isRotated
+        ? originalImage.height.toDouble()
+        : originalImage.width.toDouble();
+    final height = isRotated
+        ? originalImage.width.toDouble()
+        : originalImage.height.toDouble();
 
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
@@ -125,7 +123,10 @@ class ExportService {
     shader.setImageSampler(0, originalImage);
     shader.setImageSampler(1, lutImage);
     // マスクがない場合はダミーとしてLUT画像を使用（uHasMaskフラグで無効化）
-    shader.setImageSampler(2, hasMask && maskImage != null ? maskImage : lutImage);
+    shader.setImageSampler(
+      2,
+      hasMask && maskImage != null ? maskImage : lutImage,
+    );
 
     int idx = 0;
 

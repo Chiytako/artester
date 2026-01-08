@@ -1,0 +1,15 @@
+Analyzing artester...                                           
+
+warning - The annotation 'JsonKey.new' can only be used on fields or getters - lib\models\edit_state.dart:21:6 - invalid_annotation_target
+warning - The annotation 'JsonKey.new' can only be used on fields or getters - lib\models\edit_state.dart:24:6 - invalid_annotation_target
+warning - The annotation 'JsonKey.new' can only be used on fields or getters - lib\models\edit_state.dart:58:6 - invalid_annotation_target
+   info - 'value' is deprecated and shouldn't be used. Use component accessors like .r or .g, or toARGB32 for an explicit conversion - lib\models\layer_item.dart:34:36 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\editor_screen.dart:106:41 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\editor_screen.dart:110:45 - deprecated_member_use
+   info - The import of 'dart:typed_data' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/foundation.dart' - lib\services\ai_segmentation_service.dart:3:8 - unnecessary_import
+   info - Unnecessary braces in a string interpolation - lib\services\ai_segmentation_service.dart:98:56 - unnecessary_brace_in_string_interps
+   info - The import of 'dart:typed_data' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/services.dart' - lib\services\export_service.dart:2:8 - unnecessary_import
+   info - 'alpha' is deprecated and shouldn't be used. Use (*.a * 255.0).round().clamp(0, 255) - lib\services\export_service.dart:231:41 - deprecated_member_use
+   info - 'alpha' is deprecated and shouldn't be used. Use (*.a * 255.0).round().clamp(0, 255) - lib\widgets\layers\layer_widget.dart:95:45 - deprecated_member_use
+
+11 issues found. (ran in 5.9s)

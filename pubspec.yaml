@@ -62,6 +62,7 @@ flutter:
     - assets/luts/
     - assets/models/
     - assets/models/style_transfer_quant.tflite
+    - assets/models/style_transform.tflite
     - assets/styles/
     - assets/styles/wave.jpg
     - assets/styles/rain_princess.jpg
