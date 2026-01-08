@@ -11,8 +11,10 @@ import 'package:image_cropper/image_cropper.dart';
 
 import '../models/edit_state.dart';
 import '../models/filter_preset.dart';
+import '../services/ai_segmentation_service.dart';
 import '../services/export_service.dart';
 import '../services/preset_storage_service.dart';
+import '../services/style_transfer_service.dart';
 import '../utils/lut_generator.dart';
 
 /// 編集状態のプロバイダー
@@ -48,8 +50,11 @@ class EditNotifier extends StateNotifier<EditState> {
   final ImagePicker _picker = ImagePicker();
 
   /// パラメータを個別に変更（スライダー操作）
-  void updateParameter(String key, double value) {
-    _saveToHistory();
+  /// [saveHistory] - 履歴に保存するかどうか（デフォルトはfalse）
+  void updateParameter(String key, double value, {bool saveHistory = false}) {
+    if (saveHistory) {
+      _saveToHistory();
+    }
     final newParams = Map<String, double>.from(state.parameters);
     newParams[key] = value;
     state = state.copyWith(parameters: newParams);
@@ -182,22 +187,28 @@ class EditNotifier extends StateNotifier<EditState> {
         source: ImageSource.gallery,
       );
       if (picked != null) {
+        debugPrint('Image picked: ${picked.path}');
         state = state.copyWith(isLoading: true);
 
         final file = File(picked.path);
         final bytes = await file.readAsBytes();
+        debugPrint('Image bytes loaded: ${bytes.length} bytes');
+
         final codec = await ui.instantiateImageCodec(bytes);
         final frame = await codec.getNextFrame();
+        debugPrint('Image decoded: ${frame.image.width}x${frame.image.height}');
 
         state = state.copyWith(
           image: frame.image,
           imagePath: picked.path,
           isLoading: false,
         );
+        debugPrint('Image state updated');
         return true;
       }
       return false;
     } catch (e) {
+      debugPrint('Error picking image: $e');
       state = state.copyWith(isLoading: false);
       return false;
     }
@@ -243,6 +254,11 @@ class EditNotifier extends StateNotifier<EditState> {
 
   /// Redoが可能か
   bool get canRedo => _redoStack.isNotEmpty;
+
+  /// 比較モードを切り替え（長押し中にオリジナル画像を表示）
+  void setComparing(bool isComparing) {
+    state = state.copyWith(isComparing: isComparing);
+  }
 
   /// 90度回転（時計回り）
   void rotate90() {
@@ -315,12 +331,19 @@ class EditNotifier extends StateNotifier<EditState> {
         final frame = await codec.getNextFrame();
 
         // 4. 新しい画像でステート更新（回転・反転はリセット、色調整は維持）
+        // マスクもクリア（切り抜き後は座標が合わなくなるため）
+        final newParams = Map<String, double>.from(state.parameters);
+        newParams['bgSaturation'] = 0.0;
+        newParams['bgExposure'] = 0.0;
+
         state = state.copyWith(
           image: frame.image,
           imagePath: croppedFile.path, // 切り抜き後の一時パスを保存
           rotation: 0,
           flipX: false,
           flipY: false,
+          maskImage: null, // マスクをクリア
+          parameters: newParams, // 背景パラメータもリセット
           isLoading: false,
         );
       } else {
@@ -349,6 +372,88 @@ class EditNotifier extends StateNotifier<EditState> {
 
   final ExportService _exportService = ExportService();
   final PresetStorageService _presetStorageService = PresetStorageService();
+  final AiSegmentationService _aiService = AiSegmentationService();
+  final StyleTransferService _styleTransferService = StyleTransferService();
+
+  /// AI被写体セグメンテーションを実行
+  Future<void> runAiSegmentation(
+    ui.FragmentProgram program,
+    ui.Image neutralLut,
+  ) async {
+    if (state.image == null) return;
+
+    _saveToHistory();
+    state = state.copyWith(isAiProcessing: true);
+
+    try {
+      final maskImage = await _aiService.generateMask(
+        originalImage: state.image!,
+        rotation: state.rotation,
+        flipX: state.flipX,
+        flipY: state.flipY,
+        program: program,
+        neutralLut: neutralLut,
+      );
+
+      state = state.copyWith(
+        maskImage: maskImage,
+        isAiProcessing: false,
+      );
+    } catch (e) {
+      debugPrint('AI segmentation error: $e');
+      state = state.copyWith(isAiProcessing: false);
+      rethrow;
+    }
+  }
+
+  /// マスクと背景パラメータをクリア
+  void clearMask() {
+    _saveToHistory();
+    final newParams = Map<String, double>.from(state.parameters);
+    newParams['bgSaturation'] = 0.0;
+    newParams['bgExposure'] = 0.0;
+
+    state = state.copyWith(
+      maskImage: null,
+      parameters: newParams,
+    );
+  }
+
+  /// AI Style Transferを実行
+  ///
+  /// [modelPath] - TFLiteモデルファイルのパス（例: 'models/style_transfer_quant.tflite'）
+  /// [styleImagePath] - スタイル画像のアセットパス（例: 'assets/styles/wave.jpg'）
+  Future<void> applyStyleTransfer(String modelPath, String styleImagePath) async {
+    if (state.image == null) return;
+
+    _saveToHistory();
+    state = state.copyWith(isAiProcessing: true);
+
+    try {
+      // Initialize the model if not already initialized
+      if (!_styleTransferService.isInitialized) {
+        await _styleTransferService.initialize(modelPath);
+      }
+
+      // Apply style transfer with style image
+      final styledImage = await _styleTransferService.applyStyleTransfer(
+        state.image!,
+        styleImagePath,
+      );
+
+      // Update state with the styled image
+      state = state.copyWith(
+        image: styledImage,
+        isAiProcessing: false,
+      );
+
+      debugPrint('Style transfer applied successfully');
+    } catch (e) {
+      debugPrint('Style transfer error: $e');
+      state = state.copyWith(isAiProcessing: false);
+      rethrow;
+    }
+  }
 
   /// 現在の編集結果をエクスポート
   ///
@@ -378,6 +483,10 @@ class EditNotifier extends StateNotifier<EditState> {
         rotation: state.rotation,
         flipX: state.flipX,
         flipY: state.flipY,
+        maskImage: state.maskImage,
+        hasMask: state.hasMask,
+        bgSaturation: state.getParameter('bgSaturation'),
+        bgExposure: state.getParameter('bgExposure'),
       );
 
       state = state.copyWith(isLoading: false);

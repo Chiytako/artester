@@ -51,6 +51,15 @@ class EditState with _$EditState {
 
     /// ローディング状態
     @Default(false) bool isLoading,
+
+    /// AIセグメンテーションマスク画像
+    @JsonKey(includeFromJson: false, includeToJson: false) ui.Image? maskImage,
+
+    /// AI処理中状態
+    @Default(false) bool isAiProcessing,
+
+    /// 比較モード（長押し中にオリジナル画像を表示）
+    @Default(false) bool isComparing,
   }) = _EditState;
 
   factory EditState.fromJson(Map<String, dynamic> json) =>
@@ -71,6 +80,9 @@ class EditState with _$EditState {
     // Effect
     'vignette': 0.0,
     'grain': 0.0,
+    // AI Background
+    'bgSaturation': 0.0,
+    'bgExposure': 0.0,
   };
 
   /// 初期状態を作成
@@ -82,6 +94,9 @@ class EditState with _$EditState {
 
   /// LUTが適用されているか
   bool get hasLut => lutImage != null;
+
+  /// AIマスクが利用可能か
+  bool get hasMask => maskImage != null;
 
   /// パラメータがデフォルト値から変更されているか確認
   bool get isModified {

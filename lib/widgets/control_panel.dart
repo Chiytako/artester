@@ -100,6 +100,29 @@ const List<CategoryDef> categories = [
     icon: Icons.crop_rotate,
     parameters: [],
   ),
+  CategoryDef(
+    id: 'subject',
+    label: 'Subject',
+    icon: Icons.person_outline,
+    parameters: [
+      ParameterDef(
+        key: 'bgSaturation',
+        label: 'Bg Saturation',
+        icon: Icons.palette_outlined,
+      ),
+      ParameterDef(
+        key: 'bgExposure',
+        label: 'Bg Exposure',
+        icon: Icons.exposure_outlined,
+      ),
+    ],
+  ),
+  CategoryDef(
+    id: 'style',
+    label: 'Style',
+    icon: Icons.brush,
+    parameters: [],
+  ),
 ];
 
 /// 選択中のカテゴリを管理するプロバイダー
@@ -145,9 +168,13 @@ class ControlPanel extends ConsumerWidget {
             _buildCategoryTabs(ref, selectedCategoryId),
             const SizedBox(height: 12),
 
-            // パラメータースライダーリスト または ジオメトリボタン
+            // パラメータースライダーリスト または 特殊コントロール
             if (currentCategory.id == 'geometry')
               _buildGeometryControls(context, ref)
+            else if (currentCategory.id == 'subject')
+              _buildSubjectControls(context, ref)
+            else if (currentCategory.id == 'style')
+              _buildStyleControls(context, ref)
             else
               _buildParameterSliders(currentCategory),
             const SizedBox(height: 8),
@@ -295,6 +322,387 @@ class ControlPanel extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// 被写体コントロール（被写体検出・背景調整）
+  Widget _buildSubjectControls(BuildContext context, WidgetRef ref) {
+    final editState = ref.watch(editProvider);
+    final hasMask = editState.hasMask;
+
+    if (editState.isAiProcessing) {
+      return const SizedBox(
+        height: 160,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(color: Colors.amber),
+              SizedBox(height: 16),
+              Text(
+                'AI Processing...',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (!hasMask) {
+      return SizedBox(
+        height: 160,
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Column(
+              children: [
+                // Subject Detection Section
+                _buildAiFeatureCard(
+                  context: context,
+                  ref: ref,
+                  icon: Icons.auto_awesome,
+                  title: 'Subject Detection',
+                  description: 'Separate subject from background',
+                  buttonLabel: 'Detect Subject',
+                  onPressed: () async {
+                    final resources = ref.read(shaderResourcesProvider);
+                    if (resources != null) {
+                      try {
+                        await ref
+                            .read(editProvider.notifier)
+                            .runAiSegmentation(resources.program, resources.neutralLut);
+
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Subject detection completed!'),
+                              backgroundColor: Colors.green,
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Detection failed: $e'),
+                              backgroundColor: Colors.red,
+                              duration: const Duration(seconds: 3),
+                            ),
+                          );
+                        }
+                      }
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Shader resources not ready'),
+                          backgroundColor: Colors.orange,
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } else {
+      // Show background adjustment sliders + Style Transfer
+      return SizedBox(
+        height: 160,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            children: [
+              // Background Adjustments Header
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Background Adjustments',
+                      style: TextStyle(color: Colors.white, fontSize: 13),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => ref.read(editProvider.notifier).clearMask(),
+                      icon: const Icon(Icons.clear, size: 14, color: Colors.white60),
+                      label: const Text(
+                        'Clear',
+                        style: TextStyle(color: Colors.white60, fontSize: 11),
+                      ),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        minimumSize: const Size(0, 0),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Background sliders
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  children: [
+                    ParameterSlider(
+                      parameterKey: 'bgSaturation',
+                      label: 'Bg Saturation',
+                      icon: Icons.palette_outlined,
+                    ),
+                    const SizedBox(height: 4),
+                    ParameterSlider(
+                      parameterKey: 'bgExposure',
+                      label: 'Bg Exposure',
+                      icon: Icons.exposure_outlined,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+  }
+
+  /// スタイル変換コントロール
+  Widget _buildStyleControls(BuildContext context, WidgetRef ref) {
+    final editState = ref.watch(editProvider);
+
+    if (editState.isAiProcessing) {
+      return const SizedBox(
+        height: 160,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(color: Colors.purple),
+              SizedBox(height: 16),
+              Text(
+                'Applying artistic style...',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 160,
+      child: Center(
+        child: _buildStyleTransferSection(context, ref),
+      ),
+    );
+  }
+
+  /// AI機能カード（共通レイアウト）
+  Widget _buildAiFeatureCard({
+    required BuildContext context,
+    required WidgetRef ref,
+    required IconData icon,
+    required String title,
+    required String description,
+    required String buttonLabel,
+    required VoidCallback onPressed,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 32, color: Colors.amber),
+        const SizedBox(height: 8),
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          description,
+          style: const TextStyle(color: Colors.white60, fontSize: 11),
+        ),
+        const SizedBox(height: 8),
+        ElevatedButton.icon(
+          onPressed: onPressed,
+          icon: const Icon(Icons.play_arrow, size: 16),
+          label: Text(buttonLabel),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.amber,
+            foregroundColor: Colors.black,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            textStyle: const TextStyle(fontSize: 12),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Style Transfer セクション
+  Widget _buildStyleTransferSection(BuildContext context, WidgetRef ref) {
+    return Column(
+      children: [
+        const Icon(Icons.brush, size: 36, color: Colors.purple),
+        const SizedBox(height: 8),
+        const Text(
+          'Artistic Style Transfer',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Transform your photo with artistic styles',
+          style: TextStyle(color: Colors.white60, fontSize: 11),
+        ),
+        const SizedBox(height: 12),
+        // Style selection buttons
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          alignment: WrapAlignment.center,
+          children: [
+            _buildStyleButton(
+              context: context,
+              ref: ref,
+              label: 'Wave',
+              styleImagePath: 'assets/styles/wave.jpg',
+              icon: Icons.water,
+            ),
+            _buildStyleButton(
+              context: context,
+              ref: ref,
+              label: 'Rain Princess',
+              styleImagePath: 'assets/styles/rain_princess.jpg',
+              icon: Icons.cloud,
+            ),
+            _buildStyleButton(
+              context: context,
+              ref: ref,
+              label: 'La Muse',
+              styleImagePath: 'assets/styles/la_muse.jpg',
+              icon: Icons.face,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// スタイル選択ボタン
+  Widget _buildStyleButton({
+    required BuildContext context,
+    required WidgetRef ref,
+    required String label,
+    required String styleImagePath,
+    required IconData icon,
+  }) {
+    // Note: Interpreter.fromAsset() may or may not need 'assets/' prefix
+    // Try without prefix first (standard tflite_flutter behavior)
+    const modelPath = 'models/style_transfer_quant.tflite';
+
+    return ElevatedButton.icon(
+      onPressed: () async {
+        try {
+          await ref.read(editProvider.notifier).applyStyleTransfer(
+            modelPath,
+            styleImagePath,
+          );
+
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('$label style applied!'),
+                backgroundColor: Colors.green,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+        } catch (e) {
+          if (context.mounted) {
+            // User-friendly error message with details
+            String errorMessage = 'Style transfer failed';
+            String errorDetails = e.toString();
+
+            if (errorDetails.contains('Unable to open file') ||
+                errorDetails.contains('FileSystemException')) {
+              errorMessage = 'Model file not found or cannot be opened';
+            } else if (errorDetails.contains('Failed to load style image')) {
+              errorMessage = 'Style image not found: $styleImagePath';
+            } else if (errorDetails.contains('Shape mismatch') ||
+                       errorDetails.contains('tensor') ||
+                       errorDetails.contains('Input') ||
+                       errorDetails.contains('Output')) {
+              errorMessage = 'Model format mismatch. Check model specifications';
+            } else if (errorDetails.contains('GPU') ||
+                       errorDetails.contains('delegate')) {
+              errorMessage = 'GPU delegate error. Try restarting the app';
+            } else if (errorDetails.contains('memory') ||
+                       errorDetails.contains('Memory')) {
+              errorMessage = 'Out of memory. Try with a smaller image';
+            }
+
+            // Show error with more details
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      errorMessage,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'See STYLE_TRANSFER_TROUBLESHOOTING.md for help',
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                  ],
+                ),
+                backgroundColor: Colors.red,
+                duration: const Duration(seconds: 6),
+                action: SnackBarAction(
+                  label: 'Details',
+                  textColor: Colors.white,
+                  onPressed: () {
+                    // Show detailed error in a dialog
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Error Details'),
+                        content: SingleChildScrollView(
+                          child: Text(errorDetails),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('OK'),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            );
+          }
+        }
+      },
+      icon: Icon(icon, size: 16),
+      label: Text(label, style: const TextStyle(fontSize: 11)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.purple,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       ),
     );
   }

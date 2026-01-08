@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:artester/models/edit_state.dart';
 import 'package:artester/providers/edit_provider.dart';
 
 void main() {

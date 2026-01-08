@@ -29,6 +29,15 @@ uniform float uRotation;      // 0.0=0°, 1.0=90°, 2.0=180°, 3.0=270°
 uniform float uFlipX;         // 1.0 = Flip, 0.0 = None
 uniform float uFlipY;         // 1.0 = Flip, 0.0 = None
 
+// AI Segmentation Parameters
+uniform sampler2D uMask;      // Segmentation mask (index 2)
+uniform float uHasMask;       // 1.0 = mask available
+uniform float uBgSaturation;  // Background saturation (-1.0 ~ 1.0)
+uniform float uBgExposure;    // Background exposure (-1.0 ~ 1.0)
+
+// Compare Mode Parameter
+uniform float uShowOriginal;  // 1.0 = show original (no adjustments)
+
 out vec4 fragColor;
 
 // Hald CLUT Lookup Logic (Tri-linear interpolation)
@@ -87,6 +96,13 @@ void main() {
     vec4 srcColor = texture(uTexture, uv);
     vec3 rgb = srcColor.rgb;
 
+    // ======== Compare Mode: Show Original ========
+    if (uShowOriginal > 0.5) {
+        // 比較モード時はオリジナル画像をそのまま表示
+        fragColor = vec4(rgb, srcColor.a);
+        return;
+    }
+
     // ======== Phase 1: LUT Application ========
     if (uHasLut > 0.5) {
         vec3 lutColor = sampleLut(rgb);
@@ -136,6 +152,25 @@ void main() {
     // ======== Phase 7: Film Grain (粒子) ========
     float noise = (random(uv + fract(uSize.x * 0.001)) - 0.5) * 2.0;
     rgb += noise * uGrain * 0.08;
+
+    // ======== Phase 8: AI Background Adjustment ========
+    if (uHasMask > 0.5) {
+        // Get mask value (0.0 = background, 1.0 = subject)
+        float mask = texture(uMask, uv).r;
+
+        // Calculate background-only adjustments
+        vec3 bgRgb = rgb;
+
+        // Background exposure
+        bgRgb *= pow(2.0, uBgExposure);
+
+        // Background saturation
+        float bgGray = dot(bgRgb, vec3(0.299, 0.587, 0.114));
+        bgRgb = mix(vec3(bgGray), bgRgb, 1.0 + uBgSaturation);
+
+        // Blend: subject keeps original, background gets adjustments
+        rgb = mix(bgRgb, rgb, mask);
+    }
 
     // ======== Final: Clamp to valid range ========
     rgb = clamp(rgb, 0.0, 1.0);

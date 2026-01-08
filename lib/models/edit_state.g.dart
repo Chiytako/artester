@@ -22,6 +22,8 @@ _$EditStateImpl _$$EditStateImplFromJson(Map<String, dynamic> json) =>
       flipX: json['flipX'] as bool? ?? false,
       flipY: json['flipY'] as bool? ?? false,
       isLoading: json['isLoading'] as bool? ?? false,
+      isAiProcessing: json['isAiProcessing'] as bool? ?? false,
+      isComparing: json['isComparing'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$$EditStateImplToJson(_$EditStateImpl instance) =>
@@ -36,4 +38,6 @@ Map<String, dynamic> _$$EditStateImplToJson(_$EditStateImpl instance) =>
       'flipX': instance.flipX,
       'flipY': instance.flipY,
       'isLoading': instance.isLoading,
+      'isAiProcessing': instance.isAiProcessing,
+      'isComparing': instance.isComparing,
     };

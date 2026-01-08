@@ -45,11 +45,14 @@ class _ShaderPreviewWidgetState extends ConsumerState<ShaderPreviewWidget> {
 
   Future<void> _loadShader() async {
     try {
+      debugPrint('Loading shader...');
       _program = await ui.FragmentProgram.fromAsset(
         'shaders/advanced_adjustment.frag',
       );
+      debugPrint('Shader loaded successfully');
       if (mounted) setState(() {});
     } catch (e) {
+      debugPrint('Shader load error: $e');
       if (mounted) {
         setState(() {
           _error = 'シェーダーの読み込みに失敗しました: $e';
@@ -61,7 +64,9 @@ class _ShaderPreviewWidgetState extends ConsumerState<ShaderPreviewWidget> {
   /// Neutral LUTを生成（LUT未選択時に使用）
   Future<void> _loadNeutralLut() async {
     try {
+      debugPrint('Generating neutral LUT...');
       _neutralLut = await LutGenerator.generateNeutralLut();
+      debugPrint('Neutral LUT generated successfully: ${_neutralLut?.width}x${_neutralLut?.height}');
       if (mounted) setState(() {});
     } catch (e) {
       debugPrint('Neutral LUT生成エラー: $e');
@@ -116,21 +121,41 @@ class _ShaderPreviewWidgetState extends ConsumerState<ShaderPreviewWidget> {
     // 使用するLUT画像（カスタムLUTまたはNeutral）
     final activeLut = editState.lutImage ?? _neutralLut!;
     final hasLut = editState.lutImage != null;
+    final notifier = ref.read(editProvider.notifier);
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        return CustomPaint(
-          size: Size(constraints.maxWidth, constraints.maxHeight),
-          painter: _ShaderPainter(
-            program: _program!,
-            image: editState.image!,
-            lutImage: activeLut,
-            hasLut: hasLut,
-            lutIntensity: editState.lutIntensity,
-            parameters: editState.parameters,
-            rotation: editState.rotation,
-            flipX: editState.flipX,
-            flipY: editState.flipY,
+        return GestureDetector(
+          // 長押しで比較モード開始
+          onLongPressStart: (_) {
+            notifier.setComparing(true);
+          },
+          // 長押し終了で比較モード終了
+          onLongPressEnd: (_) {
+            notifier.setComparing(false);
+          },
+          child: InteractiveViewer(
+            minScale: 0.1,
+            maxScale: 5.0,
+            boundaryMargin: const EdgeInsets.all(double.infinity),
+            clipBehavior: Clip.none,
+            child: CustomPaint(
+              size: Size(constraints.maxWidth, constraints.maxHeight),
+              painter: _ShaderPainter(
+                program: _program!,
+                image: editState.image!,
+                lutImage: activeLut,
+                hasLut: hasLut,
+                lutIntensity: editState.lutIntensity,
+                parameters: editState.parameters,
+                rotation: editState.rotation,
+                flipX: editState.flipX,
+                flipY: editState.flipY,
+                maskImage: editState.maskImage,
+                hasMask: editState.hasMask,
+                isComparing: editState.isComparing,
+              ),
+            ),
           ),
         );
       },
@@ -154,6 +179,9 @@ class _ShaderPainter extends CustomPainter {
   final int rotation;
   final bool flipX;
   final bool flipY;
+  final ui.Image? maskImage;
+  final bool hasMask;
+  final bool isComparing;
 
   _ShaderPainter({
     required this.program,
@@ -165,21 +193,25 @@ class _ShaderPainter extends CustomPainter {
     required this.rotation,
     required this.flipX,
     required this.flipY,
+    this.maskImage,
+    required this.hasMask,
+    required this.isComparing,
   });
 
   double _get(String key) => parameters[key] ?? 0.0;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final shader = program.fragmentShader();
+    try {
+      final shader = program.fragmentShader();
 
-    // 画像のアスペクト比を維持しながらフィット
-    // 回転を考慮 (90度・270度の場合は縦横入れ替わり)
-    final isRotated = rotation % 2 != 0;
-    final imageWidth =
-        isRotated ? image.height.toDouble() : image.width.toDouble();
-    final imageHeight =
-        isRotated ? image.width.toDouble() : image.height.toDouble();
+      // 画像のアスペクト比を維持しながらフィット
+      // 回転を考慮 (90度・270度の場合は縦横入れ替わり)
+      final isRotated = rotation % 2 != 0;
+      final imageWidth =
+          isRotated ? image.height.toDouble() : image.width.toDouble();
+      final imageHeight =
+          isRotated ? image.width.toDouble() : image.height.toDouble();
 
     final imageAspect = imageWidth / imageHeight;
     final canvasAspect = size.width / size.height;
@@ -198,8 +230,11 @@ class _ShaderPainter extends CustomPainter {
     }
 
     // サンプラー設定（Flutter要件：サンプラーは最初に設定）
+    // 重要: シェーダーで定義されているすべてのサンプラーを設定する必要がある
     shader.setImageSampler(0, image); // uTexture
     shader.setImageSampler(1, lutImage); // uLut
+    // マスクがない場合はダミーとしてLUT画像を使用（uHasMaskフラグで無効化）
+    shader.setImageSampler(2, hasMask && maskImage != null ? maskImage! : lutImage); // uMask
 
     // Float uniforms（シェーダーのuniform定義順序に厳密に合わせて設定）
     int idx = 0;
@@ -233,17 +268,33 @@ class _ShaderPainter extends CustomPainter {
     shader.setFloat(idx++, flipX ? 1.0 : 0.0); // uFlipX
     shader.setFloat(idx++, flipY ? 1.0 : 0.0); // uFlipY
 
-    // 描画
-    canvas.save();
-    canvas.translate(offsetX, offsetY);
+    // AI Segmentation Parameters
+    shader.setFloat(idx++, hasMask ? 1.0 : 0.0); // uHasMask
+    shader.setFloat(idx++, _get('bgSaturation')); // uBgSaturation
+    shader.setFloat(idx++, _get('bgExposure')); // uBgExposure
 
-    final paint =
-        Paint()
-          ..shader = shader
-          ..filterQuality = FilterQuality.medium;
-    canvas.drawRect(Rect.fromLTWH(0, 0, drawWidth, drawHeight), paint);
+    // Compare Mode Parameter
+    shader.setFloat(idx++, isComparing ? 1.0 : 0.0); // uShowOriginal
 
-    canvas.restore();
+      // 描画
+      canvas.save();
+      canvas.translate(offsetX, offsetY);
+
+      final paint =
+          Paint()
+            ..shader = shader
+            ..filterQuality = FilterQuality.medium;
+      canvas.drawRect(Rect.fromLTWH(0, 0, drawWidth, drawHeight), paint);
+
+      canvas.restore();
+    } catch (e) {
+      debugPrint('Shader paint error: $e');
+      // エラー時は黒い画面の代わりにエラーメッセージを表示
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, size.width, size.height),
+        Paint()..color = const Color(0xFF121212),
+      );
+    }
   }
 
   @override
@@ -254,7 +305,10 @@ class _ShaderPainter extends CustomPainter {
         lutImage != oldDelegate.lutImage ||
         rotation != oldDelegate.rotation ||
         flipX != oldDelegate.flipX ||
-        flipY != oldDelegate.flipY) {
+        flipY != oldDelegate.flipY ||
+        hasMask != oldDelegate.hasMask ||
+        maskImage != oldDelegate.maskImage ||
+        isComparing != oldDelegate.isComparing) {
       return true;
     }
 

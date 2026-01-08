@@ -60,6 +60,16 @@ mixin _$EditState {
   /// ローディング状態
   bool get isLoading => throw _privateConstructorUsedError;
 
+  /// AIセグメンテーションマスク画像
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  ui.Image? get maskImage => throw _privateConstructorUsedError;
+
+  /// AI処理中状態
+  bool get isAiProcessing => throw _privateConstructorUsedError;
+
+  /// 比較モード（長押し中にオリジナル画像を表示）
+  bool get isComparing => throw _privateConstructorUsedError;
+
   /// Serializes this EditState to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
@@ -88,6 +98,9 @@ abstract class $EditStateCopyWith<$Res> {
     bool flipX,
     bool flipY,
     bool isLoading,
+    @JsonKey(includeFromJson: false, includeToJson: false) ui.Image? maskImage,
+    bool isAiProcessing,
+    bool isComparing,
   });
 }
 
@@ -118,6 +131,9 @@ class _$EditStateCopyWithImpl<$Res, $Val extends EditState>
     Object? flipX = null,
     Object? flipY = null,
     Object? isLoading = null,
+    Object? maskImage = freezed,
+    Object? isAiProcessing = null,
+    Object? isComparing = null,
   }) {
     return _then(
       _value.copyWith(
@@ -169,6 +185,18 @@ class _$EditStateCopyWithImpl<$Res, $Val extends EditState>
                 ? _value.isLoading
                 : isLoading // ignore: cast_nullable_to_non_nullable
                       as bool,
+            maskImage: freezed == maskImage
+                ? _value.maskImage
+                : maskImage // ignore: cast_nullable_to_non_nullable
+                      as ui.Image?,
+            isAiProcessing: null == isAiProcessing
+                ? _value.isAiProcessing
+                : isAiProcessing // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            isComparing: null == isComparing
+                ? _value.isComparing
+                : isComparing // ignore: cast_nullable_to_non_nullable
+                      as bool,
           )
           as $Val,
     );
@@ -197,6 +225,9 @@ abstract class _$$EditStateImplCopyWith<$Res>
     bool flipX,
     bool flipY,
     bool isLoading,
+    @JsonKey(includeFromJson: false, includeToJson: false) ui.Image? maskImage,
+    bool isAiProcessing,
+    bool isComparing,
   });
 }
 
@@ -226,6 +257,9 @@ class __$$EditStateImplCopyWithImpl<$Res>
     Object? flipX = null,
     Object? flipY = null,
     Object? isLoading = null,
+    Object? maskImage = freezed,
+    Object? isAiProcessing = null,
+    Object? isComparing = null,
   }) {
     return _then(
       _$EditStateImpl(
@@ -277,6 +311,18 @@ class __$$EditStateImplCopyWithImpl<$Res>
             ? _value.isLoading
             : isLoading // ignore: cast_nullable_to_non_nullable
                   as bool,
+        maskImage: freezed == maskImage
+            ? _value.maskImage
+            : maskImage // ignore: cast_nullable_to_non_nullable
+                  as ui.Image?,
+        isAiProcessing: null == isAiProcessing
+            ? _value.isAiProcessing
+            : isAiProcessing // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        isComparing: null == isComparing
+            ? _value.isComparing
+            : isComparing // ignore: cast_nullable_to_non_nullable
+                  as bool,
       ),
     );
   }
@@ -298,6 +344,9 @@ class _$EditStateImpl extends _EditState {
     this.flipX = false,
     this.flipY = false,
     this.isLoading = false,
+    @JsonKey(includeFromJson: false, includeToJson: false) this.maskImage,
+    this.isAiProcessing = false,
+    this.isComparing = false,
   }) : _parameters = parameters,
        super._();
 
@@ -370,9 +419,24 @@ class _$EditStateImpl extends _EditState {
   @JsonKey()
   final bool isLoading;
 
+  /// AIセグメンテーションマスク画像
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  final ui.Image? maskImage;
+
+  /// AI処理中状態
+  @override
+  @JsonKey()
+  final bool isAiProcessing;
+
+  /// 比較モード（長押し中にオリジナル画像を表示）
+  @override
+  @JsonKey()
+  final bool isComparing;
+
   @override
   String toString() {
-    return 'EditState(image: $image, lutImage: $lutImage, parameters: $parameters, currentPresetId: $currentPresetId, imagePath: $imagePath, activeLutPath: $activeLutPath, lutIntensity: $lutIntensity, filterStrength: $filterStrength, rotation: $rotation, flipX: $flipX, flipY: $flipY, isLoading: $isLoading)';
+    return 'EditState(image: $image, lutImage: $lutImage, parameters: $parameters, currentPresetId: $currentPresetId, imagePath: $imagePath, activeLutPath: $activeLutPath, lutIntensity: $lutIntensity, filterStrength: $filterStrength, rotation: $rotation, flipX: $flipX, flipY: $flipY, isLoading: $isLoading, maskImage: $maskImage, isAiProcessing: $isAiProcessing, isComparing: $isComparing)';
   }
 
   @override
@@ -402,7 +466,13 @@ class _$EditStateImpl extends _EditState {
             (identical(other.flipX, flipX) || other.flipX == flipX) &&
             (identical(other.flipY, flipY) || other.flipY == flipY) &&
             (identical(other.isLoading, isLoading) ||
-                other.isLoading == isLoading));
+                other.isLoading == isLoading) &&
+            (identical(other.maskImage, maskImage) ||
+                other.maskImage == maskImage) &&
+            (identical(other.isAiProcessing, isAiProcessing) ||
+                other.isAiProcessing == isAiProcessing) &&
+            (identical(other.isComparing, isComparing) ||
+                other.isComparing == isComparing));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -421,6 +491,9 @@ class _$EditStateImpl extends _EditState {
     flipX,
     flipY,
     isLoading,
+    maskImage,
+    isAiProcessing,
+    isComparing,
   );
 
   /// Create a copy of EditState
@@ -453,6 +526,10 @@ abstract class _EditState extends EditState {
     final bool flipX,
     final bool flipY,
     final bool isLoading,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    final ui.Image? maskImage,
+    final bool isAiProcessing,
+    final bool isComparing,
   }) = _$EditStateImpl;
   const _EditState._() : super._();
 
@@ -509,6 +586,19 @@ abstract class _EditState extends EditState {
   /// ローディング状態
   @override
   bool get isLoading;
+
+  /// AIセグメンテーションマスク画像
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  ui.Image? get maskImage;
+
+  /// AI処理中状態
+  @override
+  bool get isAiProcessing;
+
+  /// 比較モード（長押し中にオリジナル画像を表示）
+  @override
+  bool get isComparing;
 
   /// Create a copy of EditState
   /// with the given fields replaced by the non-null parameter values.

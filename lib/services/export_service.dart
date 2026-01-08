@@ -32,6 +32,10 @@ class ExportService {
     int rotation = 0,
     bool flipX = false,
     bool flipY = false,
+    ui.Image? maskImage,
+    bool hasMask = false,
+    double bgSaturation = 0.0,
+    double bgExposure = 0.0,
   }) async {
     final byteData = await _renderImage(
       program: program,
@@ -43,6 +47,10 @@ class ExportService {
       rotation: rotation,
       flipX: flipX,
       flipY: flipY,
+      maskImage: maskImage,
+      hasMask: hasMask,
+      bgSaturation: bgSaturation,
+      bgExposure: bgExposure,
     );
 
     // 6. ギャラリーに保存
@@ -88,6 +96,10 @@ class ExportService {
     required int rotation,
     required bool flipX,
     required bool flipY,
+    ui.Image? maskImage,
+    bool hasMask = false,
+    double bgSaturation = 0.0,
+    double bgExposure = 0.0,
   }) async {
     // 1. オリジナル解像度でCanvas作成
     // 回転を考慮したサイズ計算
@@ -108,8 +120,12 @@ class ExportService {
     // 2. シェーダー設定
     final shader = program.fragmentShader();
 
+    // サンプラー設定（Flutter要件：サンプラーは最初に設定）
+    // 重要: シェーダーで定義されているすべてのサンプラーを設定する必要がある
     shader.setImageSampler(0, originalImage);
     shader.setImageSampler(1, lutImage);
+    // マスクがない場合はダミーとしてLUT画像を使用（uHasMaskフラグで無効化）
+    shader.setImageSampler(2, hasMask && maskImage != null ? maskImage : lutImage);
 
     int idx = 0;
 
@@ -141,6 +157,11 @@ class ExportService {
     shader.setFloat(idx++, rotation.toDouble());
     shader.setFloat(idx++, flipX ? 1.0 : 0.0);
     shader.setFloat(idx++, flipY ? 1.0 : 0.0);
+
+    // AI Segmentation Parameters
+    shader.setFloat(idx++, hasMask ? 1.0 : 0.0);
+    shader.setFloat(idx++, bgSaturation);
+    shader.setFloat(idx++, bgExposure);
 
     // 3. 描画
     final paint = Paint()..shader = shader;

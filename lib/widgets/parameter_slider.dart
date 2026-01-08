@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/edit_provider.dart';
 
 /// パラメータ設定用のスライダーウィジェット
-class ParameterSlider extends ConsumerWidget {
+class ParameterSlider extends ConsumerStatefulWidget {
   final String parameterKey;
   final String label;
   final double min;
@@ -21,9 +21,14 @@ class ParameterSlider extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ParameterSlider> createState() => _ParameterSliderState();
+}
+
+class _ParameterSliderState extends ConsumerState<ParameterSlider> {
+  @override
+  Widget build(BuildContext context) {
     final editState = ref.watch(editProvider);
-    final value = editState.getParameter(parameterKey);
+    final value = editState.getParameter(widget.parameterKey);
     final notifier = ref.read(editProvider.notifier);
 
     return Padding(
@@ -36,12 +41,12 @@ class ParameterSlider extends ConsumerWidget {
             children: [
               Row(
                 children: [
-                  if (icon != null) ...[
-                    Icon(icon, size: 18, color: Colors.white70),
+                  if (widget.icon != null) ...[
+                    Icon(widget.icon, size: 18, color: Colors.white70),
                     const SizedBox(width: 8),
                   ],
                   Text(
-                    label,
+                    widget.label,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 14,
@@ -51,7 +56,7 @@ class ParameterSlider extends ConsumerWidget {
                 ],
               ),
               GestureDetector(
-                onTap: () => notifier.resetParameter(parameterKey),
+                onTap: () => notifier.resetParameter(widget.parameterKey),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -85,11 +90,16 @@ class ParameterSlider extends ConsumerWidget {
               overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
             ),
             child: Slider(
-              value: value.clamp(min, max),
-              min: min,
-              max: max,
+              value: value.clamp(widget.min, widget.max),
+              min: widget.min,
+              max: widget.max,
               onChanged: (newValue) {
-                notifier.updateParameter(parameterKey, newValue);
+                // スライダー移動中は履歴を保存しない
+                notifier.updateParameter(widget.parameterKey, newValue, saveHistory: false);
+              },
+              onChangeEnd: (newValue) {
+                // スライダー操作終了時に履歴を保存
+                notifier.updateParameter(widget.parameterKey, newValue, saveHistory: true);
               },
             ),
           ),
