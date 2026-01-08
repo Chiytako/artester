@@ -117,12 +117,7 @@ const List<CategoryDef> categories = [
       ),
     ],
   ),
-  CategoryDef(
-    id: 'style',
-    label: 'Style',
-    icon: Icons.brush,
-    parameters: [],
-  ),
+  CategoryDef(id: 'style', label: 'Style', icon: Icons.brush, parameters: []),
 ];
 
 /// 選択中のカテゴリを管理するプロバイダー
@@ -340,10 +335,7 @@ class ControlPanel extends ConsumerWidget {
             children: [
               CircularProgressIndicator(color: Colors.amber),
               SizedBox(height: 16),
-              Text(
-                'AI Processing...',
-                style: TextStyle(color: Colors.white70),
-              ),
+              Text('AI Processing...', style: TextStyle(color: Colors.white70)),
             ],
           ),
         ),
@@ -372,7 +364,10 @@ class ControlPanel extends ConsumerWidget {
                       try {
                         await ref
                             .read(editProvider.notifier)
-                            .runAiSegmentation(resources.program, resources.neutralLut);
+                            .runAiSegmentation(
+                              resources.program,
+                              resources.neutralLut,
+                            );
 
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -419,7 +414,10 @@ class ControlPanel extends ConsumerWidget {
             children: [
               // Background Adjustments Header
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -428,14 +426,22 @@ class ControlPanel extends ConsumerWidget {
                       style: TextStyle(color: Colors.white, fontSize: 13),
                     ),
                     TextButton.icon(
-                      onPressed: () => ref.read(editProvider.notifier).clearMask(),
-                      icon: const Icon(Icons.clear, size: 14, color: Colors.white60),
+                      onPressed: () =>
+                          ref.read(editProvider.notifier).clearMask(),
+                      icon: const Icon(
+                        Icons.clear,
+                        size: 14,
+                        color: Colors.white60,
+                      ),
                       label: const Text(
                         'Clear',
                         style: TextStyle(color: Colors.white60, fontSize: 11),
                       ),
                       style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         minimumSize: const Size(0, 0),
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
@@ -494,9 +500,7 @@ class ControlPanel extends ConsumerWidget {
 
     return SizedBox(
       height: 160,
-      child: Center(
-        child: _buildStyleTransferSection(context, ref),
-      ),
+      child: Center(child: _buildStyleTransferSection(context, ref)),
     );
   }
 
@@ -607,15 +611,14 @@ class ControlPanel extends ConsumerWidget {
   }) {
     // Note: Interpreter.fromAsset() may or may not need 'assets/' prefix
     // Try without prefix first (standard tflite_flutter behavior)
-    const modelPath = 'models/style_transfer_quant.tflite';
+    const modelPath = 'assets/models/style_transfer_quant.tflite';
 
     return ElevatedButton.icon(
       onPressed: () async {
         try {
-          await ref.read(editProvider.notifier).applyStyleTransfer(
-            modelPath,
-            styleImagePath,
-          );
+          await ref
+              .read(editProvider.notifier)
+              .applyStyleTransfer(modelPath, styleImagePath);
 
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -638,15 +641,16 @@ class ControlPanel extends ConsumerWidget {
             } else if (errorDetails.contains('Failed to load style image')) {
               errorMessage = 'Style image not found: $styleImagePath';
             } else if (errorDetails.contains('Shape mismatch') ||
-                       errorDetails.contains('tensor') ||
-                       errorDetails.contains('Input') ||
-                       errorDetails.contains('Output')) {
-              errorMessage = 'Model format mismatch. Check model specifications';
+                errorDetails.contains('tensor') ||
+                errorDetails.contains('Input') ||
+                errorDetails.contains('Output')) {
+              errorMessage =
+                  'Model format mismatch. Check model specifications';
             } else if (errorDetails.contains('GPU') ||
-                       errorDetails.contains('delegate')) {
+                errorDetails.contains('delegate')) {
               errorMessage = 'GPU delegate error. Try restarting the app';
             } else if (errorDetails.contains('memory') ||
-                       errorDetails.contains('Memory')) {
+                errorDetails.contains('Memory')) {
               errorMessage = 'Out of memory. Try with a smaller image';
             }
 
