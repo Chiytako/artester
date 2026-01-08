@@ -62,3 +62,19 @@ $RECYCLE.BIN/
 # Local configuration
 config.json
 secrets.yaml
+.env
+key.properties
+*.keystore
+*.jks
+
+# Firebase / Google
+google-services.json
+GoogleService-Info.plist
+
+# Generated files
+lib/generated_plugin_registrant.dart
+*.freezed.dart
+*.g.dart
+
+# AI Tools
+.claude/
