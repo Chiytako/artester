@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,6 +7,11 @@ import '../../constants/app_constants.dart';
 import '../../providers/layer_stack_provider.dart';
 import '../../providers/edit_provider.dart';
 import '../../services/ai_segmentation_service.dart';
+import '../../models/adjustment_layer.dart';
+import '../../models/layer_effect.dart';
+import '../adjustment_layer_dialog.dart';
+import '../layer_effects_dialog.dart';
+import '../mask_editor/gradient_mask_dialog.dart';
 import 'layer_tile.dart';
 
 /// レイヤーパネル
@@ -199,6 +205,15 @@ class LayerPanel extends ConsumerWidget {
                 ? () => _showMaskOptions(context, ref, layerStack)
                 : null,
           ),
+
+          // エフェクト
+          _buildActionButton(
+            icon: Icons.auto_fix_high,
+            label: 'エフェクト',
+            onPressed: layerStack.activeLayer != null && !layerStack.activeLayer!.isAdjustmentLayer
+                ? () => _showEffectsDialog(context, ref, layerStack)
+                : null,
+          ),
         ],
       ),
     );
@@ -272,6 +287,16 @@ class LayerPanel extends ConsumerWidget {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('空のレイヤー機能は実装中です')),
                 );
+              },
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.tune),
+              title: const Text('調整レイヤーを追加'),
+              subtitle: const Text('非破壊的な色調補正'),
+              onTap: () async {
+                Navigator.pop(context);
+                await _showAdjustmentLayerDialog(context, ref);
               },
             ),
           ],
@@ -449,6 +474,67 @@ class LayerPanel extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('グラデーションマスクを作成しました'),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  /// エフェクトダイアログを表示
+  Future<void> _showEffectsDialog(
+    BuildContext context,
+    WidgetRef ref,
+    layerStack,
+  ) async {
+    final activeLayer = layerStack.activeLayer;
+    if (activeLayer == null) return;
+
+    final result = await showDialog<LayerEffects>(
+      context: context,
+      builder: (context) => LayerEffectsDialog(
+        initialEffects: activeLayer.effects,
+      ),
+    );
+
+    if (result != null) {
+      ref.read(layerStackProvider.notifier).setLayerEffects(
+            activeLayer.id,
+            result,
+          );
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('エフェクトを適用しました'),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  /// 調整レイヤーダイアログを表示
+  Future<void> _showAdjustmentLayerDialog(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final result = await showDialog<AdjustmentLayerData>(
+      context: context,
+      builder: (context) => const AdjustmentLayerDialog(),
+    );
+
+    if (result != null) {
+      ref.read(layerStackProvider.notifier).addAdjustmentLayer(
+            adjustmentData: result,
+          );
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('調整レイヤーを追加しました'),
             backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
           ),

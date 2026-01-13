@@ -597,4 +597,87 @@ class LayerStackNotifier extends StateNotifier<LayerStack> {
 
     debugPrint('[LayerStack] Toggled group visibility: ${group.name} -> $newVisibility');
   }
+
+  /// レイヤーエフェクトを設定
+  void setLayerEffects(String layerId, LayerEffects? effects) {
+    final now = DateTime.now();
+
+    final updatedLayers = state.layers.map((layer) {
+      if (layer.id == layerId) {
+        return layer.copyWith(
+          effects: effects,
+          updatedAt: now,
+        );
+      }
+      return layer;
+    }).toList();
+
+    state = state.copyWith(
+      layers: updatedLayers,
+      updatedAt: now,
+      version: state.version + 1,
+    );
+
+    debugPrint('[LayerStack] Set effects for layer: $layerId');
+  }
+
+  /// 調整レイヤーを追加
+  void addAdjustmentLayer({
+    required AdjustmentLayerData adjustmentData,
+    String? name,
+    int? insertAt,
+  }) {
+    final now = DateTime.now();
+    final newOrder = insertAt ?? state.layers.length;
+
+    // 挿入位置以降のレイヤーのorderを更新
+    final updatedLayers = state.layers.map((layer) {
+      if (layer.order >= newOrder) {
+        return layer.copyWith(order: layer.order + 1);
+      }
+      return layer;
+    }).toList();
+
+    // 調整レイヤーは画像を持たない（透明な画像を作成）
+    final newLayer = Layer.create(
+      id: _uuid.v4(),
+      name: name ?? 'Adjustment Layer ${state.layers.length + 1}',
+      image: null,
+      order: newOrder,
+    ).copyWith(
+      adjustmentData: adjustmentData,
+    );
+
+    state = state.copyWith(
+      layers: [...updatedLayers, newLayer]..sort((a, b) => a.order.compareTo(b.order)),
+      activeLayerId: newLayer.id,
+      updatedAt: now,
+      version: state.version + 1,
+    );
+
+    debugPrint('[LayerStack] Added adjustment layer: ${newLayer.name}');
+  }
+
+  /// 調整レイヤーのデータを更新
+  void updateAdjustmentLayer(String layerId, AdjustmentLayerData adjustmentData) {
+    final now = DateTime.now();
+
+    final updatedLayers = state.layers.map((layer) {
+      if (layer.id == layerId) {
+        return layer.copyWith(
+          adjustmentData: adjustmentData,
+          updatedAt: now,
+        );
+      }
+      return layer;
+    }).toList();
+
+    state = state.copyWith(
+      layers: updatedLayers,
+      updatedAt: now,
+      version: state.version + 1,
+    );
+
+    debugPrint('[LayerStack] Updated adjustment layer: $layerId');
+  }
 }
