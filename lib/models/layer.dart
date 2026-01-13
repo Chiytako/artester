@@ -4,6 +4,8 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'blend_mode.dart';
 import 'layer_mask.dart';
+import 'layer_effect.dart';
+import 'adjustment_layer.dart';
 
 part 'layer.freezed.dart';
 part 'layer.g.dart';
@@ -63,6 +65,12 @@ class Layer with _$Layer {
     /// サムネイル画像パス（キャッシュ用）
     String? thumbnailPath,
 
+    /// レイヤーエフェクト
+    LayerEffects? effects,
+
+    /// 調整レイヤーデータ（調整レイヤーの場合のみ）
+    AdjustmentLayerData? adjustmentData,
+
     /// 作成日時
     required DateTime createdAt,
 
@@ -105,5 +113,15 @@ class Layer with _$Layer {
       lutIntensity > 0.0 ||
       rotation != 0 ||
       flipX ||
-      flipY;
+      flipY ||
+      (effects?.hasEffects ?? false);
+
+  /// エフェクトが有効か
+  bool get hasEffects => effects?.hasEffects ?? false;
+
+  /// 調整レイヤーかどうか
+  bool get isAdjustmentLayer => adjustmentData != null;
+
+  /// 通常のレイヤーかどうか
+  bool get isNormalLayer => !isAdjustmentLayer;
 }

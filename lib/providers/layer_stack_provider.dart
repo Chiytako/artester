@@ -9,6 +9,7 @@ import '../models/layer_mask.dart';
 import '../models/layer_stack.dart';
 import '../models/layer_group.dart';
 import '../models/blend_mode.dart';
+import '../models/adjustment_layer.dart';
 
 /// レイヤースタック管理Provider
 final layerStackProvider =

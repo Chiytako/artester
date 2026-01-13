@@ -317,12 +317,9 @@ class LayerPanel extends ConsumerWidget {
               leading: const Icon(Icons.gradient),
               title: const Text('グラデーションマスクを作成'),
               subtitle: const Text('段階的な透明度'),
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(context);
-                // TODO: グラデーションマスク作成
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('グラデーションマスク機能は実装中です')),
-                );
+                await _createGradientMask(context, ref, layerStack);
               },
             ),
           ],
@@ -410,6 +407,49 @@ class LayerPanel extends ConsumerWidget {
           SnackBar(
             content: Text('AI被写体抽出に失敗しました: $e'),
             backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _createGradientMask(
+    BuildContext context,
+    WidgetRef ref,
+    layerStack,
+  ) async {
+    final activeLayer = layerStack.activeLayer;
+    if (activeLayer == null || activeLayer.image == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('レイヤーに画像がありません')),
+        );
+      }
+      return;
+    }
+
+    // グラデーションマスクダイアログを表示
+    final maskImage = await showDialog<ui.Image>(
+      context: context,
+      builder: (context) => GradientMaskDialog(
+        imageWidth: activeLayer.image!.width,
+        imageHeight: activeLayer.image!.height,
+      ),
+    );
+
+    if (maskImage != null) {
+      // レイヤーにマスクを追加
+      ref.read(layerStackProvider.notifier).addMaskToLayer(
+            activeLayer.id,
+            maskImage: maskImage,
+          );
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('グラデーションマスクを作成しました'),
+            backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
           ),
         );
