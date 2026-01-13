@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import '../models/layer.dart';
 import '../models/layer_mask.dart';
 import '../models/layer_stack.dart';
+import '../models/layer_group.dart';
 import '../models/blend_mode.dart';
 
 /// レイヤースタック管理Provider
@@ -401,5 +402,198 @@ class LayerStackNotifier extends StateNotifier<LayerStack> {
       height: state.canvasHeight,
     );
     debugPrint('[LayerStack] Cleared all layers');
+  }
+
+  // ============================================================
+  // グループ管理メソッド
+  // ============================================================
+
+  /// グループを作成
+  void createGroup({
+    required String name,
+    List<String>? layerIds,
+    String? parentGroupId,
+  }) {
+    final now = DateTime.now();
+    final newOrder = state.groups.length;
+
+    final newGroup = LayerGroup.create(
+      id: _uuid.v4(),
+      name: name,
+      order: newOrder,
+      parentGroupId: parentGroupId,
+    );
+
+    // レイヤーIDが指定されている場合は追加
+    final groupWithLayers = layerIds != null && layerIds.isNotEmpty
+        ? newGroup.copyWith(layerIds: layerIds)
+        : newGroup;
+
+    state = state.copyWith(
+      groups: [...state.groups, groupWithLayers],
+      updatedAt: now,
+      version: state.version + 1,
+    );
+
+    debugPrint('[LayerStack] Created group: $name');
+  }
+
+  /// グループを削除
+  void deleteGroup(String groupId) {
+    final group = state.getGroupById(groupId);
+    if (group == null) return;
+
+    final now = DateTime.now();
+
+    // グループ内のレイヤーのグループ参照を解除
+    // (この実装では、レイヤーは削除せずグループから外すのみ)
+
+    // グループを削除
+    final updatedGroups = state.groups
+        .where((g) => g.id != groupId)
+        .toList();
+
+    state = state.copyWith(
+      groups: updatedGroups,
+      updatedAt: now,
+      version: state.version + 1,
+    );
+
+    debugPrint('[LayerStack] Deleted group: ${group.name}');
+  }
+
+  /// グループ名を変更
+  void renameGroup(String groupId, String newName) {
+    final updatedGroups = state.groups.map((g) {
+      if (g.id == groupId) {
+        return g.copyWith(
+          name: newName,
+          updatedAt: DateTime.now(),
+        );
+      }
+      return g;
+    }).toList();
+
+    state = state.copyWith(
+      groups: updatedGroups,
+      updatedAt: DateTime.now(),
+      version: state.version + 1,
+    );
+
+    debugPrint('[LayerStack] Renamed group: $groupId -> $newName');
+  }
+
+  /// グループにレイヤーを追加
+  void addLayerToGroup(String layerId, String groupId) {
+    final group = state.getGroupById(groupId);
+    if (group == null) return;
+
+    // すでにグループ内にある場合は何もしない
+    if (group.layerIds.contains(layerId)) return;
+
+    final updatedGroups = state.groups.map((g) {
+      if (g.id == groupId) {
+        return g.copyWith(
+          layerIds: [...g.layerIds, layerId],
+          updatedAt: DateTime.now(),
+        );
+      }
+      return g;
+    }).toList();
+
+    state = state.copyWith(
+      groups: updatedGroups,
+      updatedAt: DateTime.now(),
+      version: state.version + 1,
+    );
+
+    debugPrint('[LayerStack] Added layer $layerId to group $groupId');
+  }
+
+  /// グループからレイヤーを削除
+  void removeLayerFromGroup(String layerId, String groupId) {
+    final group = state.getGroupById(groupId);
+    if (group == null) return;
+
+    final updatedGroups = state.groups.map((g) {
+      if (g.id == groupId) {
+        return g.copyWith(
+          layerIds: g.layerIds.where((id) => id != layerId).toList(),
+          updatedAt: DateTime.now(),
+        );
+      }
+      return g;
+    }).toList();
+
+    state = state.copyWith(
+      groups: updatedGroups,
+      updatedAt: DateTime.now(),
+      version: state.version + 1,
+    );
+
+    debugPrint('[LayerStack] Removed layer $layerId from group $groupId');
+  }
+
+  /// グループの展開/折りたたみを切り替え
+  void toggleGroupExpanded(String groupId) {
+    final group = state.getGroupById(groupId);
+    if (group == null) return;
+
+    final updatedGroups = state.groups.map((g) {
+      if (g.id == groupId) {
+        return g.copyWith(
+          isExpanded: !g.isExpanded,
+          updatedAt: DateTime.now(),
+        );
+      }
+      return g;
+    }).toList();
+
+    state = state.copyWith(
+      groups: updatedGroups,
+      updatedAt: DateTime.now(),
+    );
+
+    debugPrint('[LayerStack] Toggled group expanded: ${group.name} -> ${!group.isExpanded}');
+  }
+
+  /// グループの表示/非表示を切り替え
+  void toggleGroupVisibility(String groupId) {
+    final group = state.getGroupById(groupId);
+    if (group == null) return;
+
+    final now = DateTime.now();
+
+    // グループ内の全レイヤーの表示/非表示も切り替え
+    final newVisibility = !group.isVisible;
+
+    final updatedLayers = state.layers.map((layer) {
+      if (group.layerIds.contains(layer.id)) {
+        return layer.copyWith(
+          isVisible: newVisibility,
+          updatedAt: now,
+        );
+      }
+      return layer;
+    }).toList();
+
+    final updatedGroups = state.groups.map((g) {
+      if (g.id == groupId) {
+        return g.copyWith(
+          isVisible: newVisibility,
+          updatedAt: now,
+        );
+      }
+      return g;
+    }).toList();
+
+    state = state.copyWith(
+      layers: updatedLayers,
+      groups: updatedGroups,
+      updatedAt: now,
+      version: state.version + 1,
+    );
+
+    debugPrint('[LayerStack] Toggled group visibility: ${group.name} -> $newVisibility');
   }
 }

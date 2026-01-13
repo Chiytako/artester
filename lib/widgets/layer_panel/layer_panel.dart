@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../constants/app_colors.dart';
 import '../../constants/app_constants.dart';
 import '../../providers/layer_stack_provider.dart';
+import '../../providers/edit_provider.dart';
+import '../../services/ai_segmentation_service.dart';
 import 'layer_tile.dart';
 
 /// レイヤーパネル
@@ -194,16 +196,7 @@ class LayerPanel extends ConsumerWidget {
             icon: Icons.add_photo_alternate,
             label: 'マスク',
             onPressed: layerStack.activeLayer != null
-                ? () {
-                    final activeId = layerStack.activeLayerId!;
-                    ref.read(layerStackProvider.notifier).addMaskToLayer(activeId);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('マスクを追加しました'),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  }
+                ? () => _showMaskOptions(context, ref, layerStack)
                 : null,
           ),
         ],
@@ -285,5 +278,142 @@ class LayerPanel extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  void _showMaskOptions(BuildContext context, WidgetRef ref, layerStack) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(AppConstants.paddingLarge),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.add_photo_alternate),
+              title: const Text('空のマスクを追加'),
+              subtitle: const Text('ブラシで自由に描画'),
+              onTap: () {
+                Navigator.pop(context);
+                final activeId = layerStack.activeLayerId!;
+                ref.read(layerStackProvider.notifier).addMaskToLayer(activeId);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('マスクを追加しました'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.auto_awesome),
+              title: const Text('AI被写体抽出からマスクを作成'),
+              subtitle: const Text('自動的に被写体を検出'),
+              onTap: () async {
+                Navigator.pop(context);
+                await _createMaskFromAI(context, ref, layerStack);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.gradient),
+              title: const Text('グラデーションマスクを作成'),
+              subtitle: const Text('段階的な透明度'),
+              onTap: () {
+                Navigator.pop(context);
+                // TODO: グラデーションマスク作成
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('グラデーションマスク機能は実装中です')),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _createMaskFromAI(
+    BuildContext context,
+    WidgetRef ref,
+    layerStack,
+  ) async {
+    final activeLayer = layerStack.activeLayer;
+    if (activeLayer == null || activeLayer.image == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('レイヤーに画像がありません')),
+        );
+      }
+      return;
+    }
+
+    // AI被写体抽出を実行
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              ),
+              SizedBox(width: 12),
+              Text('AI被写体抽出を実行中...'),
+            ],
+          ),
+          duration: Duration(seconds: 30),
+        ),
+      );
+    }
+
+    try {
+      // シェーダーリソースを取得
+      final resources = ref.read(shaderResourcesProvider);
+      if (resources == null) {
+        throw Exception('シェーダーリソースが準備できていません');
+      }
+
+      // AI被写体抽出を実行
+      final aiService = AiSegmentationService();
+      final maskImage = await aiService.generateMask(
+        originalImage: activeLayer.image!,
+        rotation: activeLayer.rotation,
+        flipX: activeLayer.flipX,
+        flipY: activeLayer.flipY,
+        program: resources.program,
+        neutralLut: resources.neutralLut,
+      );
+
+      // レイヤーにマスクを追加
+      ref.read(layerStackProvider.notifier).addMaskToLayer(
+            activeLayer.id,
+            maskImage: maskImage,
+          );
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('AI被写体抽出からマスクを作成しました'),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('AI被写体抽出に失敗しました: $e'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 }

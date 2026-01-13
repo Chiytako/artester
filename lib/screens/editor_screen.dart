@@ -6,8 +6,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_constants.dart';
 import '../providers/edit_provider.dart';
+import '../providers/ui_state_provider.dart';
+import '../providers/layer_stack_provider.dart';
 import '../widgets/control_panel.dart';
 import '../widgets/shader_preview_widget.dart';
+import '../widgets/layer_panel/layer_panel.dart';
+import '../widgets/layer_preview_widget.dart';
 
 /// メイン編集画面
 ///
@@ -34,143 +38,178 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     final editState = ref.watch(editProvider);
     final hasImage = editState.imagePath != null;
 
+    final layerPanelVisible = ref.watch(layerPanelVisibleProvider);
+    final layerStack = ref.watch(layerStackProvider);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: _buildAppBar(context, ref, hasImage, editState.isLoading),
-      body: Stack(
+      body: Row(
         children: [
-          // Layer 0: Background
-          Container(color: AppColors.surface),
+          // メインコンテンツエリア
+          Expanded(
+            child: Stack(
+              children: [
+                // Layer 0: Background
+                Container(color: AppColors.surface),
 
-          // Layer 1: Shader Preview (GPU処理結果)
-          Positioned.fill(
-            child: ShaderPreviewWidget(
-              onReady: (program, neutralLut) {
-                _program = program;
-                _neutralLut = neutralLut;
-                // Update specific provider for Geometry operations
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  ref
-                      .read(shaderResourcesProvider.notifier)
-                      .state = ShaderResources(program, neutralLut);
-                });
-              },
-            ),
-          ),
-
-          // Layer 2: Overlay Layer (将来のテキスト・ステッカー用)
-          // 現在は空のContainer
-          Positioned.fill(
-            child: IgnorePointer(
-              child: Container(
-                // 将来的にテキストやステッカーを描画
-                color: Colors.transparent,
-              ),
-            ),
-          ),
-
-          // 比較モードのヒント表示
-          if (hasImage && !editState.isComparing)
-            Positioned(
-              top: AppConstants.spacingLarge,
-              left: AppConstants.spacingLarge,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppConstants.paddingMedium,
-                  vertical: AppConstants.paddingSmall,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.overlayDark,
-                  borderRadius: BorderRadius.circular(AppConstants.borderRadiusXLarge),
-                  border: Border.all(color: AppColors.border, width: 1),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.touch_app, color: AppColors.textSecondary, size: AppConstants.iconSizeSmall),
-                    SizedBox(width: AppConstants.spacingSmall),
-                    Text(
-                      'Long press to compare',
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-          // 比較モード中の表示
-          if (editState.isComparing)
-            Positioned(
-              top: AppConstants.spacingLarge,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppConstants.paddingXLarge,
-                    vertical: AppConstants.paddingMedium,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: AppConstants.opacityHigh),
-                    borderRadius: BorderRadius.circular(AppConstants.borderRadiusCircular),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: AppConstants.opacityLow),
-                        blurRadius: AppConstants.blurRadiusMedium,
-                        spreadRadius: 2,
+                // Layer 1: Preview（レイヤーシステムまたはシェーダープレビュー）
+                Positioned.fill(
+                  child: layerStack.hasLayers
+                    ? const LayerPreviewWidget()
+                    : ShaderPreviewWidget(
+                        onReady: (program, neutralLut) {
+                          _program = program;
+                          _neutralLut = neutralLut;
+                          // Update specific provider for Geometry operations
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            ref
+                                .read(shaderResourcesProvider.notifier)
+                                .state = ShaderResources(program, neutralLut);
+                          });
+                        },
                       ),
-                    ],
+                ),
+
+                // Layer 2: Overlay Layer (将来のテキスト・ステッカー用)
+                // 現在は空のContainer
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Container(
+                      // 将来的にテキストやステッカーを描画
+                      color: Colors.transparent,
+                    ),
                   ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.visibility, color: Colors.black87, size: AppConstants.iconSizeSmall + 4),
-                      SizedBox(width: AppConstants.spacingSmall),
-                      Text(
-                        'ORIGINAL',
-                        style: TextStyle(
-                          color: Colors.black87,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.2,
+                ),
+
+                // 比較モードのヒント表示
+                if (hasImage && !editState.isComparing)
+                  Positioned(
+                    top: AppConstants.spacingLarge,
+                    left: AppConstants.spacingLarge,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppConstants.paddingMedium,
+                        vertical: AppConstants.paddingSmall,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.overlayDark,
+                        borderRadius: BorderRadius.circular(AppConstants.borderRadiusXLarge),
+                        border: Border.all(color: AppColors.border, width: 1),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.touch_app, color: AppColors.textSecondary, size: AppConstants.iconSizeSmall),
+                          SizedBox(width: AppConstants.spacingSmall),
+                          Text(
+                            'Long press to compare',
+                            style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                // 比較モード中の表示
+                if (editState.isComparing)
+                  Positioned(
+                    top: AppConstants.spacingLarge,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppConstants.paddingXLarge,
+                          vertical: AppConstants.paddingMedium,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: AppConstants.opacityHigh),
+                          borderRadius: BorderRadius.circular(AppConstants.borderRadiusCircular),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: AppConstants.opacityLow),
+                              blurRadius: AppConstants.blurRadiusMedium,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.visibility, color: Colors.black87, size: AppConstants.iconSizeSmall + 4),
+                            SizedBox(width: AppConstants.spacingSmall),
+                            Text(
+                              'ORIGINAL',
+                              style: TextStyle(
+                                color: Colors.black87,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-          // Layer 3: Control Panel (UI)
-          if (hasImage)
-            const Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: ControlPanel(),
-            ),
-
-          // 画像未選択時のピッカーボタン
-          if (!hasImage) Center(child: _buildImagePickerButton()),
-
-          // エクスポート中のオーバーレイ
-          if (_isExporting)
-            Container(
-              color: AppColors.overlayDark,
-              child: const Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(color: AppColors.primary),
-                    SizedBox(height: AppConstants.spacingLarge),
-                    Text(
-                      'エクスポート中...',
-                      style: TextStyle(color: Colors.white, fontSize: 16),
                     ),
-                  ],
-                ),
-              ),
+                  ),
+
+                // Layer 3: Control Panel (UI)
+                if (hasImage)
+                  const Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: ControlPanel(),
+                  ),
+
+                // 画像未選択時のピッカーボタン
+                if (!hasImage) Center(child: _buildImagePickerButton()),
+
+                // エクスポート中のオーバーレイ
+                if (_isExporting)
+                  Container(
+                    color: AppColors.overlayDark,
+                    child: const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(color: AppColors.primary),
+                          SizedBox(height: AppConstants.spacingLarge),
+                          Text(
+                            'エクスポート中...',
+                            style: TextStyle(color: Colors.white, fontSize: 16),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
             ),
+          ),
+
+          // レイヤーパネル（右側スライドイン）
+          AnimatedPositioned(
+            duration: AppConstants.animationDuration,
+            curve: Curves.easeInOut,
+            right: layerPanelVisible ? 0 : -350,
+            top: 0,
+            bottom: 0,
+            width: 350,
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.5),
+                    blurRadius: 20,
+                    offset: const Offset(-5, 0),
+                  ),
+                ],
+              ),
+              child: const LayerPanel(),
+            ),
+          ),
         ],
       ),
     );
@@ -209,6 +248,19 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
               : null,
       actions: [
         if (hasImage) ...[
+          // レイヤーパネル切り替えボタン
+          IconButton(
+            icon: Icon(
+              Icons.layers,
+              color: ref.watch(layerPanelVisibleProvider)
+                ? AppColors.primary
+                : Colors.white,
+            ),
+            onPressed: () {
+              ref.read(layerPanelVisibleProvider.notifier).update((state) => !state);
+            },
+            tooltip: 'レイヤー',
+          ),
           // Undo ボタン
           IconButton(
             icon: Icon(

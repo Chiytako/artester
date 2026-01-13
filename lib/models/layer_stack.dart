@@ -1,6 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'layer.dart';
+import 'layer_group.dart';
 
 part 'layer_stack.freezed.dart';
 part 'layer_stack.g.dart';
@@ -15,6 +16,9 @@ class LayerStack with _$LayerStack {
   const factory LayerStack({
     /// レイヤーのリスト（order順にソート済み）
     @Default([]) List<Layer> layers,
+
+    /// レイヤーグループのリスト
+    @Default([]) List<LayerGroup> groups,
 
     /// アクティブなレイヤーのID
     String? activeLayerId,
@@ -89,5 +93,38 @@ class LayerStack with _$LayerStack {
   int? getLayerIndex(String id) {
     final index = layers.indexWhere((layer) => layer.id == id);
     return index >= 0 ? index : null;
+  }
+
+  /// グループが存在するか
+  bool get hasGroups => groups.isNotEmpty;
+
+  /// 指定したIDのグループを取得
+  LayerGroup? getGroupById(String id) {
+    try {
+      return groups.firstWhere((group) => group.id == id);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// グループ内のレイヤーを取得
+  List<Layer> getLayersInGroup(String groupId) {
+    final group = getGroupById(groupId);
+    if (group == null) return [];
+
+    return layers.where((layer) {
+      return group.layerIds.contains(layer.id);
+    }).toList();
+  }
+
+  /// レイヤーが属しているグループを取得
+  LayerGroup? getLayerGroup(String layerId) {
+    try {
+      return groups.firstWhere(
+        (group) => group.layerIds.contains(layerId),
+      );
+    } catch (e) {
+      return null;
+    }
   }
 }
