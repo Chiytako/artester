@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:gal/gal.dart';
 
 import '../models/edit_state.dart';
+import '../utils/geometry_utils.dart';
+import '../utils/shader_utils.dart';
 
 /// 高解像度画像エクスポートサービス
 ///
@@ -103,66 +105,43 @@ class ExportService {
   }) async {
     // 1. オリジナル解像度でCanvas作成
     // 回転を考慮したサイズ計算
-    final isRotated = rotation % 2 != 0;
-    final width = isRotated
-        ? originalImage.height.toDouble()
-        : originalImage.width.toDouble();
-    final height = isRotated
-        ? originalImage.width.toDouble()
-        : originalImage.height.toDouble();
+    final size = GeometryUtils.getRotatedImageSize(originalImage, rotation);
 
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
-    final size = Size(width, height);
 
     // 2. シェーダー設定
     final shader = program.fragmentShader();
 
-    // サンプラー設定（Flutter要件：サンプラーは最初に設定）
-    // 重要: シェーダーで定義されているすべてのサンプラーを設定する必要がある
-    shader.setImageSampler(0, originalImage);
-    shader.setImageSampler(1, lutImage);
-    // マスクがない場合はダミーとしてLUT画像を使用（uHasMaskフラグで無効化）
-    shader.setImageSampler(
-      2,
-      hasMask && maskImage != null ? maskImage : lutImage,
+    // サンプラー設定
+    ShaderUtils.setShaderSamplers(
+      shader: shader,
+      image: originalImage,
+      lutImage: lutImage,
+      maskImage: maskImage,
+      hasMask: hasMask,
     );
 
-    int idx = 0;
+    // パラメータ設定
+    // 背景処理用のパラメータをマップに追加
+    final allParameters = Map<String, double>.from(parameters);
+    if (hasMask) {
+      allParameters['bgSaturation'] = bgSaturation;
+      allParameters['bgExposure'] = bgExposure;
+    }
 
-    // uSize
-    shader.setFloat(idx++, size.width);
-    shader.setFloat(idx++, size.height);
-
-    // LUT Parameters
-    shader.setFloat(idx++, lutIntensity);
-    shader.setFloat(idx++, hasLut ? 1.0 : 0.0);
-
-    // Light Parameters
-    shader.setFloat(idx++, _get(parameters, 'exposure'));
-    shader.setFloat(idx++, _get(parameters, 'brightness'));
-    shader.setFloat(idx++, _get(parameters, 'contrast'));
-    shader.setFloat(idx++, _get(parameters, 'highlight'));
-    shader.setFloat(idx++, _get(parameters, 'shadow'));
-
-    // Color Parameters
-    shader.setFloat(idx++, _get(parameters, 'saturation'));
-    shader.setFloat(idx++, _get(parameters, 'temperature'));
-    shader.setFloat(idx++, _get(parameters, 'tint'));
-
-    // Effect Parameters
-    shader.setFloat(idx++, _get(parameters, 'vignette'));
-    shader.setFloat(idx++, _get(parameters, 'grain'));
-
-    // Geometry Parameters
-    shader.setFloat(idx++, rotation.toDouble());
-    shader.setFloat(idx++, flipX ? 1.0 : 0.0);
-    shader.setFloat(idx++, flipY ? 1.0 : 0.0);
-
-    // AI Segmentation Parameters
-    shader.setFloat(idx++, hasMask ? 1.0 : 0.0);
-    shader.setFloat(idx++, bgSaturation);
-    shader.setFloat(idx++, bgExposure);
+    ShaderUtils.setShaderParameters(
+      shader: shader,
+      width: size.width,
+      height: size.height,
+      lutIntensity: lutIntensity,
+      hasLut: hasLut,
+      parameters: allParameters,
+      rotation: rotation,
+      flipX: flipX,
+      flipY: flipY,
+      hasMask: hasMask,
+    );
 
     // 3. 描画
     final paint = Paint()..shader = shader;
@@ -184,8 +163,4 @@ class ExportService {
     }
     return byteData;
   }
-
-  /// パラメータ取得ヘルパー
-  double _get(Map<String, double> parameters, String key) =>
-      parameters[key] ?? EditState.defaultParameters[key] ?? 0.0;
 }

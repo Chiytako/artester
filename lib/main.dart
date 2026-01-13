@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'constants/app_colors.dart';
+import 'constants/app_constants.dart';
 import 'screens/editor_screen.dart';
 
 void main() {
@@ -18,28 +20,28 @@ class ArtesterApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Artester',
+      title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
         colorScheme: ColorScheme.dark(
-          primary: Colors.amber,
-          secondary: Colors.orange,
-          surface: const Color(0xFF121212),
-          onSurface: Colors.white,
+          primary: AppColors.primary,
+          secondary: AppColors.secondary,
+          surface: AppColors.surface,
+          onSurface: AppColors.onSurface,
         ),
-        scaffoldBackgroundColor: const Color(0xFF121212),
+        scaffoldBackgroundColor: AppColors.surface,
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.transparent,
           elevation: 0,
           centerTitle: true,
         ),
         sliderTheme: SliderThemeData(
-          activeTrackColor: Colors.amber,
-          inactiveTrackColor: Colors.white24,
+          activeTrackColor: AppColors.primary,
+          inactiveTrackColor: AppColors.border,
           thumbColor: Colors.white,
-          overlayColor: const Color.fromRGBO(255, 193, 7, 0.2),
+          overlayColor: AppColors.primaryOverlay,
         ),
       ),
       home: const EditorScreen(),

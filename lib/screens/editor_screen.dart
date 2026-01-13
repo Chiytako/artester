@@ -3,6 +3,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../constants/app_colors.dart';
+import '../constants/app_constants.dart';
 import '../providers/edit_provider.dart';
 import '../widgets/control_panel.dart';
 import '../widgets/shader_preview_widget.dart';
@@ -33,12 +35,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     final hasImage = editState.imagePath != null;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: AppColors.background,
       appBar: _buildAppBar(context, ref, hasImage, editState.isLoading),
       body: Stack(
         children: [
           // Layer 0: Background
-          Container(color: const Color(0xFF121212)),
+          Container(color: AppColors.surface),
 
           // Layer 1: Shader Preview (GPU処理結果)
           Positioned.fill(
@@ -70,23 +72,26 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
           // 比較モードのヒント表示
           if (hasImage && !editState.isComparing)
             Positioned(
-              top: 16,
-              left: 16,
+              top: AppConstants.spacingLarge,
+              left: AppConstants.spacingLarge,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppConstants.paddingMedium,
+                  vertical: AppConstants.paddingSmall,
+                ),
                 decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white24, width: 1),
+                  color: AppColors.overlayDark,
+                  borderRadius: BorderRadius.circular(AppConstants.borderRadiusXLarge),
+                  border: Border.all(color: AppColors.border, width: 1),
                 ),
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.touch_app, color: Colors.white70, size: 16),
-                    SizedBox(width: 6),
+                    Icon(Icons.touch_app, color: AppColors.textSecondary, size: AppConstants.iconSizeSmall),
+                    SizedBox(width: AppConstants.spacingSmall),
                     Text(
                       'Long press to compare',
-                      style: TextStyle(color: Colors.white70, fontSize: 11),
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
                     ),
                   ],
                 ),
@@ -96,19 +101,22 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
           // 比較モード中の表示
           if (editState.isComparing)
             Positioned(
-              top: 16,
+              top: AppConstants.spacingLarge,
               left: 0,
               right: 0,
               child: Center(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppConstants.paddingXLarge,
+                    vertical: AppConstants.paddingMedium,
+                  ),
                   decoration: BoxDecoration(
-                    color: Colors.amber.withOpacity(0.9),
-                    borderRadius: BorderRadius.circular(24),
+                    color: AppColors.primary.withValues(alpha: AppConstants.opacityHigh),
+                    borderRadius: BorderRadius.circular(AppConstants.borderRadiusCircular),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.amber.withOpacity(0.3),
-                        blurRadius: 12,
+                        color: AppColors.primary.withValues(alpha: AppConstants.opacityLow),
+                        blurRadius: AppConstants.blurRadiusMedium,
                         spreadRadius: 2,
                       ),
                     ],
@@ -116,8 +124,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.visibility, color: Colors.black87, size: 20),
-                      SizedBox(width: 8),
+                      Icon(Icons.visibility, color: Colors.black87, size: AppConstants.iconSizeSmall + 4),
+                      SizedBox(width: AppConstants.spacingSmall),
                       Text(
                         'ORIGINAL',
                         style: TextStyle(
@@ -148,13 +156,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
           // エクスポート中のオーバーレイ
           if (_isExporting)
             Container(
-              color: Colors.black54,
+              color: AppColors.overlayDark,
               child: const Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    CircularProgressIndicator(color: Colors.amber),
-                    SizedBox(height: 16),
+                    CircularProgressIndicator(color: AppColors.primary),
+                    SizedBox(height: AppConstants.spacingLarge),
                     Text(
                       'エクスポート中...',
                       style: TextStyle(color: Colors.white, fontSize: 16),
@@ -180,7 +188,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
       backgroundColor: Colors.transparent,
       elevation: 0,
       title: const Text(
-        'Artester',
+        AppConstants.appName,
         style: TextStyle(
           color: Colors.white,
           fontWeight: FontWeight.bold,
@@ -231,8 +239,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
               Icons.download,
               color:
                   (_program != null && !isLoading)
-                      ? Colors.amber
-                      : Colors.white30,
+                      ? AppColors.primary
+                      : AppColors.textTertiary,
             ),
             onPressed:
                 (_program != null && !isLoading) ? () => _exportImage() : null,
@@ -247,16 +255,19 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     return GestureDetector(
       onTap: () => ref.read(editProvider.notifier).pickImage(),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppConstants.spacingXXLarge,
+          vertical: AppConstants.paddingXLarge,
+        ),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [Colors.amber.shade700, Colors.orange.shade800],
           ),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppConstants.borderRadiusLarge),
           boxShadow: [
             BoxShadow(
-              color: const Color.fromRGBO(255, 193, 7, 0.3),
-              blurRadius: 20,
+              color: AppColors.shadowColor,
+              blurRadius: AppConstants.blurRadiusLarge,
               spreadRadius: 2,
             ),
           ],
@@ -264,8 +275,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
         child: const Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.add_photo_alternate, color: Colors.white, size: 28),
-            SizedBox(width: 12),
+            Icon(Icons.add_photo_alternate, color: Colors.white, size: AppConstants.iconSizeLarge),
+            SizedBox(width: AppConstants.spacingMedium),
             Text(
               '画像を選択',
               style: TextStyle(
@@ -285,14 +296,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
       context: context,
       builder:
           (context) => AlertDialog(
-            backgroundColor: const Color(0xFF1E1E1E),
+            backgroundColor: AppColors.dialogBackground,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(AppConstants.borderRadiusLarge),
             ),
             title: const Text('編集をリセット', style: TextStyle(color: Colors.white)),
             content: const Text(
               'すべての調整をデフォルト値に戻しますか？',
-              style: TextStyle(color: Colors.white70),
+              style: TextStyle(color: AppColors.textSecondary),
             ),
             actions: [
               TextButton(
@@ -304,7 +315,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                   notifier.resetAllParameters();
                   Navigator.pop(context);
                 },
-                child: const Text('リセット', style: TextStyle(color: Colors.red)),
+                child: const Text('リセット', style: TextStyle(color: AppColors.error)),
               ),
             ],
           ),
@@ -328,11 +339,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
             content: Row(
               children: [
                 Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 8),
+                SizedBox(width: AppConstants.spacingSmall),
                 Text('ギャラリーに保存しました'),
               ],
             ),
-            backgroundColor: Colors.green,
+            backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -344,11 +355,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
             content: Row(
               children: [
                 const Icon(Icons.error, color: Colors.white),
-                const SizedBox(width: 8),
+                const SizedBox(width: AppConstants.spacingSmall),
                 Expanded(child: Text('エクスポートに失敗しました: $e')),
               ],
             ),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
           ),
         );
