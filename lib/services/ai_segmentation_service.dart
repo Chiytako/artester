@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_subject_segmentation/google_mlkit_subject_segmentation.dart';
 
+import '../utils/geometry_utils.dart';
 import 'export_service.dart';
 
 /// AI 被写体セグメンテーションサービス
@@ -90,9 +91,13 @@ class AiSegmentationService {
           maskHeight = inputImage.metadata!.size.height.toInt();
         } else {
           // 回転を考慮してサイズを計算
-          final isRotated = rotation % 2 != 0;
-          maskWidth = isRotated ? originalImage.height : originalImage.width;
-          maskHeight = isRotated ? originalImage.width : originalImage.height;
+          final rotatedSize = GeometryUtils.getRotatedIntSize(
+            originalImage.width,
+            originalImage.height,
+            rotation,
+          );
+          maskWidth = rotatedSize['width']!;
+          maskHeight = rotatedSize['height']!;
         }
 
         debugPrint('[AI] Using mask size: ${maskWidth}x${maskHeight}');

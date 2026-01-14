@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/edit_state.dart';
 import '../providers/edit_provider.dart';
+import '../utils/geometry_utils.dart';
 import '../utils/lut_generator.dart';
+import '../utils/shader_utils.dart';
 
 /// シェーダーを使用して画像をリアルタイム処理するウィジェット
 ///
@@ -208,80 +210,38 @@ class _ShaderPainter extends CustomPainter {
       final shader = program.fragmentShader();
 
       // 画像のアスペクト比を維持しながらフィット
-      // 回転を考慮 (90度・270度の場合は縦横入れ替わり)
-      final isRotated = rotation % 2 != 0;
-      final imageWidth = isRotated
-          ? image.height.toDouble()
-          : image.width.toDouble();
-      final imageHeight = isRotated
-          ? image.width.toDouble()
-          : image.height.toDouble();
+      // 回転を考慮したサイズ計算
+      final imageSize = GeometryUtils.getRotatedImageSize(image, rotation);
+      final fitSize = GeometryUtils.calculateFitSize(imageSize, size);
 
-      final imageAspect = imageWidth / imageHeight;
-      final canvasAspect = size.width / size.height;
+      final drawWidth = fitSize['width']!;
+      final drawHeight = fitSize['height']!;
+      final offsetX = fitSize['offsetX']!;
+      final offsetY = fitSize['offsetY']!;
 
-      double drawWidth, drawHeight;
-      double offsetX = 0, offsetY = 0;
+      // サンプラー設定
+      ShaderUtils.setShaderSamplers(
+        shader: shader,
+        image: image,
+        lutImage: lutImage,
+        maskImage: maskImage,
+        hasMask: hasMask,
+      );
 
-      if (imageAspect > canvasAspect) {
-        drawWidth = size.width;
-        drawHeight = size.width / imageAspect;
-        offsetY = (size.height - drawHeight) / 2;
-      } else {
-        drawHeight = size.height;
-        drawWidth = size.height * imageAspect;
-        offsetX = (size.width - drawWidth) / 2;
-      }
-
-      // サンプラー設定（Flutter要件：サンプラーは最初に設定）
-      // 重要: シェーダーで定義されているすべてのサンプラーを設定する必要がある
-      shader.setImageSampler(0, image); // uTexture
-      shader.setImageSampler(1, lutImage); // uLut
-      // マスクがない場合はダミーとしてLUT画像を使用（uHasMaskフラグで無効化）
-      shader.setImageSampler(
-        2,
-        hasMask && maskImage != null ? maskImage! : lutImage,
-      ); // uMask
-
-      // Float uniforms（シェーダーのuniform定義順序に厳密に合わせて設定）
-      int idx = 0;
-
-      // uSize (vec2) - 描画サイズ
-      shader.setFloat(idx++, drawWidth);
-      shader.setFloat(idx++, drawHeight);
-
-      // LUT Parameters
-      shader.setFloat(idx++, lutIntensity); // uLutIntensity
-      shader.setFloat(idx++, hasLut ? 1.0 : 0.0); // uHasLut
-
-      // Light Parameters
-      shader.setFloat(idx++, _get('exposure')); // uExposure
-      shader.setFloat(idx++, _get('brightness')); // uBrightness
-      shader.setFloat(idx++, _get('contrast')); // uContrast
-      shader.setFloat(idx++, _get('highlight')); // uHighlight
-      shader.setFloat(idx++, _get('shadow')); // uShadow
-
-      // Color Parameters
-      shader.setFloat(idx++, _get('saturation')); // uSaturation
-      shader.setFloat(idx++, _get('temperature')); // uTemperature
-      shader.setFloat(idx++, _get('tint')); // uTint
-
-      // Effect Parameters
-      shader.setFloat(idx++, _get('vignette')); // uVignette
-      shader.setFloat(idx++, _get('grain')); // uGrain
-
-      // Geometry Parameters
-      shader.setFloat(idx++, rotation.toDouble()); // uRotation
-      shader.setFloat(idx++, flipX ? 1.0 : 0.0); // uFlipX
-      shader.setFloat(idx++, flipY ? 1.0 : 0.0); // uFlipY
-
-      // AI Segmentation Parameters
-      shader.setFloat(idx++, hasMask ? 1.0 : 0.0); // uHasMask
-      shader.setFloat(idx++, _get('bgSaturation')); // uBgSaturation
-      shader.setFloat(idx++, _get('bgExposure')); // uBgExposure
-
-      // Compare Mode Parameter
-      shader.setFloat(idx++, isComparing ? 1.0 : 0.0); // uShowOriginal
+      // パラメータ設定
+      ShaderUtils.setShaderParameters(
+        shader: shader,
+        width: drawWidth,
+        height: drawHeight,
+        lutIntensity: lutIntensity,
+        hasLut: hasLut,
+        parameters: parameters,
+        rotation: rotation,
+        flipX: flipX,
+        flipY: flipY,
+        hasMask: hasMask,
+        isComparing: isComparing,
+      );
 
       // 描画
       canvas.save();
